@@ -1,4 +1,4 @@
-use crate::{DType, Shape};
+use crate::{DType, Range, Shape};
 
 
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +85,14 @@ pub enum Error {
     EmptyTensor { op: &'static str },
 
     // === Op Specific Errors ===
+    #[error("narrow range invalid args {msg}: {shape:?}, dim: {dim}, range: {range}")]
+    NarrowRangeInvalidArgs {
+        shape: Shape,
+        dim: usize,
+        range: Range,
+        msg: &'static str,
+    },
+
     #[error("narrow invalid args {msg}: {shape:?}, dim: {dim}, start: {start}, len:{len}")]
     NarrowInvalidArgs {
         shape: Shape,
@@ -92,6 +100,12 @@ pub enum Error {
         start: usize,
         len: usize,
         msg: &'static str,
+    },
+
+    #[error("can squeeze {dim} dim of {shape:?}(not 1)")]
+    SqueezeDimNot1 {
+        shape: Shape,
+        dim: usize,
     },
 
     #[error("{op} invalid index {index} with dim size {size}")]

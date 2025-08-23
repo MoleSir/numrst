@@ -10,6 +10,10 @@ impl Shape {
         Self(vec![])
     }
 
+    pub fn is_scaler(&self) -> bool {
+        self.0.is_empty()
+    } 
+
     pub fn rank(&self) -> usize {
         self.0.len()
     }
@@ -209,10 +213,24 @@ impl D {
 
 pub trait Dim {
     fn to_index(&self, shape: &Shape, op: &'static str) -> Result<usize>;
+    fn to_index_plus_one(&self, shape: &Shape, op: &'static str) -> Result<usize>;
 }
 
 impl Dim for usize {
     fn to_index(&self, shape: &Shape, op: &'static str) -> Result<usize> {
+        let dim = *self;
+        if dim >= shape.rank() {
+            Err(Error::DimOutOfRange {
+                shape: shape.clone(),
+                dim: dim as i32,
+                op,
+            })
+        } else {
+            Ok(dim)
+        }
+    }
+
+    fn to_index_plus_one(&self, shape: &Shape, op: &'static str) -> Result<usize> {
         let dim = *self;
         if dim >= shape.rank() {
             Err(Error::DimOutOfRange {
@@ -234,6 +252,16 @@ impl Dim for D {
             Self::Minus2 if rank >= 2 => Ok(rank - 2),
             Self::Minus(u) if *u > 0 && rank >= *u => Ok(rank - *u),
             Self::Index(u) => u.to_index(shape, op),
+            _ => Err(self.out_of_range(shape, op)),
+        }
+    }
+
+    fn to_index_plus_one(&self, shape: &Shape, op: &'static str) -> Result<usize> {
+        let rank = shape.rank();
+        match self {
+            Self::Minus1 => Ok(rank),
+            Self::Minus2 if rank >= 1 => Ok(rank - 1),
+            Self::Minus(u) if *u > 0 && rank + 1 >= *u => Ok(rank + 1 - *u),
             _ => Err(self.out_of_range(shape, op)),
         }
     }

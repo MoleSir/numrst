@@ -1,7 +1,7 @@
 use rand::Rng;
 use rand_distr::Distribution;
 use crate::{Error, Result};
-use super::{DType, Scalar, Shape};
+use super::{DType, Layout, Scalar, Shape};
 
 pub enum Storage {
     U32(Vec<u32>),
@@ -101,6 +101,44 @@ impl Storage {
             Self::U32(vec) => vec.get(index).cloned().map(Scalar::U32),
             Self::F32(vec) => vec.get(index).cloned().map(Scalar::F32),
             Self::F64(vec) => vec.get(index).cloned().map(Scalar::F64),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::I32(vec) => vec.len(),
+            Self::U32(vec) => vec.len(),
+            Self::F32(vec) => vec.len(),
+            Self::F64(vec) => vec.len(),
+        }
+    }
+
+    pub fn copy(&self, layout: &Layout) -> Result<Storage> {
+        fn _copy<T: Copy>(vec: &[T], layout: &Layout) -> Vec<T> {
+            let mut output = vec![];
+            for index in layout.to_index() {
+                output.push( vec[index] );
+            }
+            output
+        }
+        
+        match self {
+            Storage::U32(vec) => {
+                let output = _copy(vec, layout);
+                Ok(Storage::U32(output))
+            }
+            Storage::I32(vec) => {
+                let output = _copy(vec, layout);
+                Ok(Storage::I32(output))
+            }
+            Storage::F32(vec) => {
+                let output = _copy(vec, layout);
+                Ok(Storage::F32(output))
+            }
+            Storage::F64(vec) => {
+                let output = _copy(vec, layout);
+                Ok(Storage::F64(output))
+            }
         }
     }
 }

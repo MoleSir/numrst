@@ -14,7 +14,7 @@ impl Layout {
             shape: shape.into(), stride, start_offset
         }
     }
-
+    
     pub fn contiguous<S: Into<Shape>>(shape: S) -> Self {
         let shape = shape.into();
         let stride = shape.stride_contiguous();
@@ -22,6 +22,16 @@ impl Layout {
             shape,
             stride,
             start_offset: 0,
+        }
+    }
+
+    pub fn contiguous_with_offset<S: Into<Shape>>(shape: S, start_offset: usize) -> Self {
+        let shape = shape.into();
+        let stride = shape.stride_contiguous();
+        Self {
+            shape,
+            stride,
+            start_offset,
         }
     }
 
@@ -78,6 +88,48 @@ impl Layout {
         Ok(Self::new(
             dims, 
             self.stride.clone(),
+            self.start_offset + self.stride[dim] * start
+        ))
+    }
+
+    pub fn narrow_range(&self, dim: usize, start: usize, end: usize, step: usize) -> Result<Self> {
+        let dims = self.shape().dims();
+        if dim >= dims.len() {
+            Err(Error::DimOutOfRange { 
+                shape: self.shape().clone(), 
+                dim: dim as i32, 
+                op: "narrow" 
+            })?;
+        }
+        
+        let len = (start..end).step_by(step).len();
+        if len == 0 {
+            Err(Error::NarrowInvalidArgs {
+                shape: self.shape.clone(),
+                dim,
+                start,
+                len,
+                msg: "len == 0",
+            })?
+        }
+        if end > dims[dim] {
+            Err(Error::NarrowInvalidArgs {
+                shape: self.shape.clone(),
+                dim,
+                start,
+                len,
+                msg: "start + len > dim_len",
+            })?
+        }
+
+        let mut dims = dims.to_vec();
+        dims[dim] = len;
+        let mut stride = self.stride.clone();
+        stride[dim] *= step;
+
+        Ok(Self::new(
+            dims, 
+            stride,
             self.start_offset + self.stride[dim] * start
         ))
     }

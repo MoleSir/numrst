@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{DType, Layout, Result, Shape, Storage, WithDType};
+use crate::{DType, Error, Layout, Result, Shape, Storage, WithDType};
 
 use super::{NdArray, NdArrayId, NdArrayImpl};
 
@@ -53,7 +53,22 @@ impl NdArray {
 
     pub fn fill<S: Into<Shape>, D: WithDType>(shape: S, value: D) -> Result<Self> {
         let shape: Shape = shape.into();
-        let storage = D::to_fill_storage(value, shape.element_count())?;
+        let storage = D::to_filled_storage(value, shape.element_count())?;
+        Ok(Self::from_storage(storage, shape))
+    }
+
+    pub fn arange<D: WithDType>(start: D, end: D) -> Result<Self> {
+        let storage = D::to_range_storage(start, end)?;
+        let shape = storage.len();
+        Ok(Self::from_storage(storage, shape))
+    }
+
+    pub fn from_vec<S: Into<Shape>, D: WithDType>(vec: Vec<D>, shape: S) -> Result<Self> {
+        let shape: Shape = shape.into();
+        if shape.element_count() != vec.len() {
+            return Err(Error::Msg(format!("shape' element_count {} != vec.len {}", shape.element_count(), vec.len())));
+        }
+        let storage = D::to_storage(vec)?;
         Ok(Self::from_storage(storage, shape))
     }
 

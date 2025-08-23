@@ -3,12 +3,12 @@ use crate::{LayoutIndex, Scalar, Storage};
 
 use super::NdArray;
 
-pub struct TensorIter<'a> {
+pub struct NdArrayIter<'a> {
     indexes: LayoutIndex<'a>,
     storage: Arc<RwLock<Storage>>
 }
 
-impl<'a> Iterator for TensorIter<'a> {
+impl<'a> Iterator for NdArrayIter<'a> {
     type Item = Scalar;
 
     fn next(&mut self) -> Option<Scalar> {
@@ -18,8 +18,8 @@ impl<'a> Iterator for TensorIter<'a> {
 }
 
 impl NdArray {
-    pub fn iter(&self) -> TensorIter {
-        TensorIter {
+    pub fn iter(&self) -> NdArrayIter {
+        NdArrayIter {
             indexes: self.0.layout.to_index(),
             storage: self.0.storage.clone()
         }
