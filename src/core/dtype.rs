@@ -1,3 +1,5 @@
+use approx::relative_eq;
+
 use crate::Result;
 
 use super::Storage;
@@ -72,6 +74,20 @@ impl Scalar {
             Scalar::I32(v) => *v as f64,
             Scalar::F32(v) => *v as f64,
             Scalar::F64(v) => *v,
+        }
+    }
+
+    pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
+        match (self, other) {
+            (Scalar::U32(a), Scalar::U32(b)) => a == b,
+            (Scalar::I32(a), Scalar::I32(b)) => a == b,
+            (Scalar::F32(a), Scalar::F32(b)) => {
+                relative_eq!(a, b, epsilon = atol as f32, max_relative = rtol as f32)
+            }
+            (Scalar::F64(a), Scalar::F64(b)) => {
+                relative_eq!(a, b, epsilon = atol, max_relative = rtol)
+            }
+            _ => false,
         }
     }
 }

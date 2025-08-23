@@ -1,9 +1,7 @@
 use rand::Rng;
 use rand_distr::Distribution;
-
 use crate::{Error, Result};
-
-use super::{DType, Shape};
+use super::{DType, Scalar, Shape};
 
 pub enum Storage {
     U32(Vec<u32>),
@@ -96,5 +94,13 @@ impl Storage {
             Self::F64(_) => DType::F64,
         }
     }
-}
 
+    pub fn get(&self, index: usize) -> Option<Scalar> {
+        match self {
+            Self::I32(vec) => vec.get(index).cloned().map(Scalar::I32),
+            Self::U32(vec) => vec.get(index).cloned().map(Scalar::U32),
+            Self::F32(vec) => vec.get(index).cloned().map(Scalar::F32),
+            Self::F64(vec) => vec.get(index).cloned().map(Scalar::F64),
+        }
+    }
+}

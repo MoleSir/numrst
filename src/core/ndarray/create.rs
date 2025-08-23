@@ -8,26 +8,13 @@ impl NdArray {
     pub fn new<A: ToNdArray>(array: A) -> Result<Self> {
         let shape = array.shape()?;
         let storage = array.to_storage()?;
-        let dtype = storage.dtype();
-        let ndarray_impl = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        Ok(Self(Arc::new(ndarray_impl)))
+        Ok(Self::from_storage(storage, shape))
     }
 
     pub fn zeros<S: Into<Shape>>(shape: S, dtype: DType) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::zeros(&shape, dtype);
-        let ndarray_impl = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        Ok(Self(Arc::new(ndarray_impl)))
+        Ok(Self::from_storage(storage, shape))
     }
 
     pub fn zero_like(&self) -> Result<Self> {
@@ -37,13 +24,7 @@ impl NdArray {
     pub fn ones<S: Into<Shape>>(shape: S, dtype: DType) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::ones(&shape, dtype);
-        let ndarray_impl = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        Ok(Self(Arc::new(ndarray_impl)))
+        Ok(Self::from_storage(storage, shape))
     }
 
     pub fn ones_like(&self) -> Result<Self> {
@@ -53,13 +34,7 @@ impl NdArray {
     pub fn rand<S: Into<Shape>>(min: f64, max: f64, shape: S, dtype: DType) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::rand_uniform(&shape, dtype, min, max)?;
-        let ndarray_impl = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        Ok(Self(Arc::new(ndarray_impl)))
+        Ok(Self::from_storage(storage, shape))
     }
 
     pub fn rand_like(&self, min: f64, max: f64) -> Result<Self> {
@@ -69,13 +44,7 @@ impl NdArray {
     pub fn randn<S: Into<Shape>>(mean: f64, std: f64, shape: S, dtype: DType) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::rand_normal(&shape, dtype, mean, std)?;
-        let ndarray_impl = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        Ok(Self(Arc::new(ndarray_impl)))
+        Ok(Self::from_storage(storage, shape))
     }
 
     pub fn randn_like(&self, mean: f64, std: f64) -> Result<Self> {
@@ -85,13 +54,18 @@ impl NdArray {
     pub fn fill<S: Into<Shape>, D: WithDType>(shape: S, value: D) -> Result<Self> {
         let shape: Shape = shape.into();
         let storage = D::to_fill_storage(value, shape.element_count())?;
-        let ndarray_impl = NdArrayImpl {
+        Ok(Self::from_storage(storage, shape))
+    }
+
+    pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage, shape: S) -> NdArray {
+        let dtype = storage.dtype();
+        let ndarray_ = NdArrayImpl {
             id: NdArrayId::new(),
             storage: Arc::new(RwLock::new(storage)),
             layout: Layout::contiguous(shape),
-            dtype: value.dtype(),
+            dtype,
         };
-        Ok(Self(Arc::new(ndarray_impl)))
+        NdArray(Arc::new(ndarray_))
     }
 }
 

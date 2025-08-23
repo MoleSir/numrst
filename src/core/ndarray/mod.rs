@@ -1,5 +1,10 @@
 mod create;
-mod arith;
+mod index;
+mod binary_op;
+mod unary_op;
+mod matmul;
+mod iter;
+mod display;
 
 use std::sync::{Arc, RwLock};
 use super::{DType, Layout, Shape, Storage};
@@ -44,5 +49,13 @@ impl NdArray {
 
     pub fn storage(&self) -> std::sync::RwLockReadGuard<'_, Storage> {
         self.0.storage.read().unwrap()
+    }
+
+    pub fn element_count(&self) -> usize {
+        self.shape().element_count()
+    }
+
+    pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
+        self.iter().zip(other.iter()).all(|(a, b)| a.allclose(&b, rtol, atol))
     }
 }
