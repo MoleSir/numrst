@@ -114,6 +114,9 @@ pub trait WithDType:
     + num_traits::NumAssign
     + std::cmp::PartialOrd
     + std::fmt::Display
+    + std::iter::Sum
+    + std::iter::Product
+    + PartialOrd
     + 'static
     + Send
     + Sync

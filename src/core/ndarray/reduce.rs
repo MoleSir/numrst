@@ -1,7 +1,7 @@
-use crate::{Dim, Layout, Result, Storage, WithDType};
+use num_traits::Pow;
 
+use crate::{core::ndarray::construct::ToNdArray, Dim, Layout, Result, Storage, WithDType};
 use super::NdArray;
-
 
 macro_rules! reduce_impl {
     ($fn_name:ident, $reduce:ident) => {
@@ -21,121 +21,299 @@ impl NdArray {
     reduce_impl!(min, ReduceMin);
     reduce_impl!(max, ReduceMax);
     reduce_impl!(mean, ReduceMean);
+    reduce_impl!(var, ReduceVar);
 
     fn reduec_op<R: ReduceOp>(storage: &Storage, layout: &Layout, dim: usize) -> Result<Storage> {
-        fn _reduce_op<R: ReduceOp, T: WithDType>(src: &[T], src_layout: &Layout, dim_index: usize) -> Result<Vec<T>> {
-            assert!(dim_index < src_layout.dims().len());
-            let reduce_stride = src_layout.stride()[dim_index];
-            let reduce_dim = src_layout.dims()[dim_index];
+        fn _reduce_op<F, T: WithDType, R: WithDType>(src: &[T], src_layout: &Layout, reduce_dim: usize, f: F) -> Result<Vec<R>>  
+        where 
+            F: Fn(DimArray<'_, T>) -> R,
 
-            let dst_len = src_layout.element_count() / reduce_dim;
-            // Init dst vector with `init` method 
-            let mut dst = vec![R::init(); dst_len];
+        {
+            assert!(reduce_dim < src_layout.dims().len());
+            let reduce_dim_stride = src_layout.stride()[reduce_dim];
+            let reduce_dim_size = src_layout.dims()[reduce_dim];
 
-            for (index, src_index) in src_layout.to_index().enumerate() {
-                let mut dst_index = index;
+            let dst_len = src_layout.element_count() / reduce_dim_size;
+            let mut dst: Vec<R> = Vec::with_capacity(dst_len);
+            let dst_to_set = dst.spare_capacity_mut();
 
-                let (pre, post) = (dst_index / reduce_stride, dst_index % reduce_stride);
-                dst_index = (pre / reduce_dim) * reduce_stride + post;
-                // Call accumlate method
-                R::accumlate(&mut dst[dst_index], &src[src_index]);
+            let layout = src_layout.narrow(reduce_dim, 0, 1)?;
+            for (dst_index, src_index) in layout.to_index().enumerate() {
+                let src = &src[src_index..];
+                let arr: DimArray<'_, T> = DimArray {
+                    src,
+                    size: reduce_dim_size,
+                    stride: reduce_dim_stride
+                };
+                dst_to_set[dst_index].write(f(arr));
             }
 
-            R::finalize(&mut dst, reduce_dim);
-
+            unsafe { dst.set_len(dst_len) };
             Ok(dst)
         }
 
         match storage {
             Storage::U32(vec) => {
-                let output = _reduce_op::<R, u32>(vec, layout, dim)?;
-                Ok(Storage::U32(output))
+                let output = _reduce_op(vec, layout, dim, R::u32)?;
+                Ok(output.to_storage()?)
             }
             Storage::I32(vec) => {
-                let output = _reduce_op::<R, i32>(vec, layout, dim)?;
-                Ok(Storage::I32(output))
+                let output = _reduce_op(vec, layout, dim, R::i32)?;
+                Ok(output.to_storage()?)
             }
             Storage::F32(vec) => {
-                let output = _reduce_op::<R, f32>(vec, layout, dim)?;
+                let output = _reduce_op(vec, layout, dim, R::f32)?;
                 Ok(Storage::F32(output))
             }
             Storage::F64(vec) => {
-                let output = _reduce_op::<R, f64>(vec, layout, dim)?;
+                let output = _reduce_op(vec, layout, dim,R::f64)?;
                 Ok(Storage::F64(output))
             }
         }
     }
+
 }
 
 trait ReduceOp {
-    fn init<D: WithDType>() -> D;
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D);
-    fn finalize<D: WithDType>(_dst: &mut [D], _count: usize) {}
+    type U32Ret: WithDType;
+    type I32Ret: WithDType;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> Self::U32Ret;
+    fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret;
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32;
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64;
 }
 
 struct ReduceSum;
 impl ReduceOp for ReduceSum {
-    fn init<D: WithDType>() -> D {
-        D::zero()
+    type I32Ret = i32;
+    type U32Ret = u32;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::sum(arr)
     }
+    fn i32<'a>(arr: DimArray<'a, i32>) -> i32 {
+        Self::sum(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        Self::sum(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        Self::sum(arr)
+    }
+}
 
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D) {
-        *dst += *src;
+impl ReduceSum {
+    fn sum<'a, D: WithDType>(arr: DimArray<'a, D>) -> D {
+        arr.into_iter().sum::<D>()
     }
 }
 
 struct ReduceProduct;
 impl ReduceOp for ReduceProduct {
-    fn init<D: WithDType>() -> D {
-        D::one()
+    type I32Ret = i32;
+    type U32Ret = u32;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::product(arr)
     }
-
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D) {
-        *dst *= *src;
+    fn i32<'a>(arr: DimArray<'a, i32>) -> i32 {
+        Self::product(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        Self::product(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        Self::product(arr)
     }
 }
 
+impl ReduceProduct {
+    fn product<'a, D: WithDType>(arr: DimArray<'a, D>) -> D {
+        arr.into_iter().product::<D>()
+    }
+}
 
 struct ReduceMin;
 impl ReduceOp for ReduceMin {
-    fn init<D: WithDType>() -> D {
-        D::max_value()
+    type I32Ret = i32;
+    type U32Ret = u32;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::min(arr)
     }
+    fn i32<'a>(arr: DimArray<'a, i32>) -> i32 {
+        Self::min(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        Self::min(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        Self::min(arr)
+    }
+}
 
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D) {
-        if *src < *dst {
-            *dst = *src;
-        }
+impl ReduceMin {
+    fn min<'a, D: WithDType>(arr: DimArray<'a, D>) -> D {
+        arr.into_iter()
+            .reduce(|a, b| {
+                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Less) {
+                    a
+                } else {
+                    b
+                }
+            }).unwrap()
     }
 }
 
 struct ReduceMax;
 impl ReduceOp for ReduceMax {
-    fn init<D: WithDType>() -> D {
-        D::min_value()
+    type I32Ret = i32;
+    type U32Ret = u32;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::max(arr)
     }
+    fn i32<'a>(arr: DimArray<'a, i32>) -> i32 {
+        Self::max(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        Self::max(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        Self::max(arr)
+    }
+}
 
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D) {
-        if *src > *dst {
-            *dst = *src;
-        }
+impl ReduceMax {
+    fn max<'a, D: WithDType>(arr: DimArray<'a, D>) -> D {
+        arr.into_iter()
+            .reduce(|a, b| {
+                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Greater) {
+                    a
+                } else {
+                    b
+                }
+            }).unwrap()
     }
 }
 
 struct ReduceMean;
 impl ReduceOp for ReduceMean {
-    fn init<D: WithDType>() -> D {
-        D::zero()
+    type I32Ret = f64;
+    type U32Ret = f64;
+    fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret {
+        let len = arr.len();
+        let sum = ReduceSum::i32(arr);
+        sum as f64 / len as f64
     }
 
-    fn accumlate<D: WithDType>(dst: &mut D, src: &D) {
-        *dst += *src;
+    fn u32<'a>(arr: DimArray<'a, u32>) -> Self::I32Ret {
+        let len = arr.len();
+        let sum = ReduceSum::u32(arr);
+        sum as f64 / len as f64
     }
 
-    fn finalize<D: WithDType>(dst: &mut [D], count: usize) {
-        let count = D::from_f64(count as f64);
-        for d in dst {
-            *d = *d / count;
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        let len = arr.len();
+        let sum = ReduceSum::f32(arr);
+        sum / len as f32
+    }    
+
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        let len = arr.len();
+        let sum = ReduceSum::f64(arr);
+        sum / len as f64
+    }
+}
+
+struct ReduceVar;
+impl ReduceOp for ReduceVar {
+    type I32Ret = f64;
+    type U32Ret = f64;
+    fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret {
+        let len = arr.len();
+        let mean = ReduceMean::i32(arr.clone());
+        let sum = arr.into_iter()
+            .map(|v| (v as f64 - mean).pow(2))
+            .sum::<f64>();
+        sum as f64 / len as f64
+    }
+
+    fn u32<'a>(arr: DimArray<'a, u32>) -> Self::I32Ret {
+        let len = arr.len();
+        let mean = ReduceMean::u32(arr.clone());
+        let sum = arr.into_iter()
+            .map(|v| (v as f64 - mean).pow(2))
+            .sum::<f64>();
+        sum as f64 / len as f64
+    }
+
+    fn f32<'a>(arr: DimArray<'a, f32>) -> f32 {
+        let len = arr.len();
+        let mean = ReduceMean::f32(arr.clone());
+        let sum = arr.into_iter()
+            .map(|v| (v - mean).pow(2))
+            .sum::<f32>();
+        sum / len as f32
+    }    
+
+    fn f64<'a>(arr: DimArray<'a, f64>) -> f64 {
+        let len = arr.len();
+        let mean = ReduceMean::f64(arr.clone());
+        let sum = arr.into_iter()
+            .map(|v| (v - mean).pow(2))
+            .sum::<f64>();
+        sum / len as f64
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DimArray<'a, T> {
+    src: &'a [T],
+    size: usize,
+    stride: usize
+}
+
+impl<'a, T: WithDType> DimArray<'a, T> {
+    pub fn get(&self, index: usize) -> T {
+        self.src[index * self.stride]
+    }
+
+    #[allow(unused)]
+    pub fn to_vec(&self) -> Vec<T> {
+        let mut v = vec![];
+        for i in 0..self.size {
+            v.push(self.get(i));
+        }
+        v
+    }
+
+    pub fn len(&self) -> usize {
+        self.size
+    }
+}
+
+impl<'a, T: WithDType> IntoIterator for DimArray<'a, T> {
+    type IntoIter = DimArrayIter<'a, T>;
+    type Item = T;
+    fn into_iter(self) -> Self::IntoIter {
+        DimArrayIter {
+            array: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct DimArrayIter<'a, T> {
+    array: DimArray<'a, T>,
+    index: usize,
+}
+
+impl<'a, T: WithDType> Iterator for DimArrayIter<'a, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        if self.index >= self.array.size {
+            None
+        } else {
+            let index = self.index;
+            self.index += 1;
+            Some(self.array.get(index))
         }
     }
 }
@@ -233,7 +411,40 @@ mod tests {
         //  [3, 4, 5]]  mean -> 4
         let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
         let m = arr.mean(1).unwrap();
-        let expected = NdArray::new(&[2, 4]).unwrap();
+        let expected = NdArray::new(&[2., 4.]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
+    }
+
+    #[test]
+    fn test_var_1d() {
+        // NumPy: np.var([1, 2, 3]) = 2/3 = 0.666...
+        let arr = NdArray::new(&[1.0f64, 2.0, 3.0]).unwrap();
+        let v = arr.var(0).unwrap();
+        let expected = NdArray::new(&[2.0 / 3.0]).unwrap();
+        assert!(v.allclose(&expected, 1e-6, 1e-12));
+    }
+
+    #[test]
+    fn test_var_2d_axis0() {
+        // arr = [[1, 2, 3],
+        //        [4, 5, 6]]
+        // np.var(arr, axis=0) = [2.25, 2.25, 2.25]
+        let arr = NdArray::new(&[[1.0, 2.0, 3.0],
+                                 [4.0, 5.0, 6.0]]).unwrap();
+        let v = arr.var(0).unwrap();
+        let expected = NdArray::new(&[2.25, 2.25, 2.25]).unwrap();
+        assert!(v.allclose(&expected, 1e-6, 1e-12));
+    }
+
+    #[test]
+    fn test_var_2d_axis1() {
+        // arr = [[1, 2, 3],
+        //        [4, 5, 6]]
+        // np.var(arr, axis=1) = [2/3, 2/3]
+        let arr = NdArray::new(&[[1.0, 2.0, 3.0],
+                                 [4.0, 5.0, 6.0]]).unwrap();
+        let v = arr.var(1).unwrap();
+        let expected = NdArray::new(&[2.0/3.0, 2.0/3.0]).unwrap();
+        assert!(v.allclose(&expected, 1e-6, 1e-12));
     }
 }
