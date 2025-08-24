@@ -14,3 +14,5 @@ print(b)
 print(a.strides)
 print(b.strides)
 
+np.minimum()
+np.min()

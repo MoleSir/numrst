@@ -2,7 +2,7 @@ use std::vec;
 
 use crate::{Error, Result};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shape(Vec<usize>);
 
 impl Shape {
@@ -165,9 +165,19 @@ impl From<()> for Shape {
     }
 }
 
-impl std::fmt::Debug for Shape {
+impl std::fmt::Display for Shape {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", &self.0)
+        write!(f, "(")?;
+        for (i, dim) in self.0.iter().enumerate() {
+            if i > 0 {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", dim)?;
+        }
+        if self.0.len() == 1 {
+            write!(f, ",")?;
+        }
+        write!(f, ")")
     }
 }
 

@@ -31,6 +31,16 @@ impl DType {
     }
 }
 
+impl std::fmt::Display for DType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::I32 => write!(f, "32-bit signed"),
+            Self::U32 => write!(f, "32-bit unsigned"),
+            Self::F32 => write!(f, "32-bit float"),
+            Self::F64 => write!(f, "64-bit float"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Scalar {
@@ -38,6 +48,12 @@ pub enum Scalar {
     I32(i32),
     F32(f32),
     F64(f64),
+}
+
+impl std::fmt::Display for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl Scalar {
@@ -104,6 +120,9 @@ pub trait WithDType:
 {
     const DTYPE: DType;
 
+    fn min_value() -> Self;
+    fn max_value() -> Self;
+
     fn from_f64(v: f64) -> Self;
     fn to_f64(self) -> f64;
     fn to_scalar(self) -> Scalar;
@@ -118,6 +137,14 @@ macro_rules! with_int_dtype {
     ($ty:ty, $dtype:ident) => {
         impl WithDType for $ty {
             const DTYPE: DType = DType::$dtype;
+
+            fn min_value() -> Self {
+                <$ty>::MIN
+            }
+
+            fn max_value() -> Self {
+                <$ty>::MAX
+            }
 
             fn from_f64(v: f64) -> Self {
                 v as $ty
@@ -174,6 +201,14 @@ macro_rules! with_float_dtype {
     ($ty:ty, $dtype:ident) => {
         impl WithDType for $ty {
             const DTYPE: DType = DType::$dtype;
+
+            fn min_value() -> Self {
+                <$ty>::MIN
+            }
+
+            fn max_value() -> Self {
+                <$ty>::MAX
+            }
 
             fn from_f64(v: f64) -> Self {
                 v as $ty
