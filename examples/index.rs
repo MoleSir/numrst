@@ -1,4 +1,4 @@
-use numrs::{rng, IndexOp, NdArray, Range};
+use numrst::{rng, IndexOp, NdArray, Range};
 
 #[allow(unused)]
 fn result_main() -> Result<(), Box<dyn std::error::Error>> {

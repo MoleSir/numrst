@@ -1,6 +1,6 @@
-# NumRs
+# NumRst
 
-NumRs is the fundamental package for scientific computing with Rust.
+NumRst is the fundamental package for scientific computing with Rust.
 
 
 

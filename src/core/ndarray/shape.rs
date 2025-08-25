@@ -8,7 +8,7 @@ impl<T: WithDType> NdArray<T> {
     /// Creates a new tensor with the specified dimension removed if its size was one.
     ///
     /// ```rust
-    /// use numrs::{NdArray, DType, D};
+    /// use numrst::{NdArray, DType, D};
     /// let a = NdArray::<f32>::zeros((2, 3, 1)).unwrap();
     ///
     /// let c = a.squeeze(2).unwrap();
@@ -37,7 +37,7 @@ impl<T: WithDType> NdArray<T> {
     /// Creates a new tensor with a dimension of size one inserted at the specified position.
     ///
     /// ```rust
-    /// use numrs::{NdArray, DType, D};
+    /// use numrst::{NdArray, DType, D};
     /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
     ///
     /// let c = a.unsqueeze(0).unwrap();
@@ -65,7 +65,7 @@ impl<T: WithDType> NdArray<T> {
     /// Returns a new tensor that is a narrowed version of the input, the dimension `dim`
     /// ranges from `start` to `start + len`.
     /// ```
-    /// use numrs::NdArray;
+    /// use numrst::NdArray;
     /// let a = NdArray::new(&[
     ///     [0f32, 1., 2.],
     ///     [3.  , 4., 5.],
@@ -114,7 +114,7 @@ impl<T: WithDType> NdArray<T> {
     /// Returns a new tensor that is a narrowed version of the input, the dimension `dim`
     /// ranges from `start` to `start : end : step`.
     /// ```
-    /// use numrs::{NdArray, DType, rng, Range};
+    /// use numrst::{NdArray, DType, rng, Range};
     /// let a = NdArray::<i32>::zeros((5, 5, 5)).unwrap();
     ///
     /// let b = a.narrow(0, 1, 2).unwrap();
@@ -169,7 +169,7 @@ impl<T: WithDType> NdArray<T> {
     /// as to match the number of elements in the tensor.
     /// 
     /// ```rust
-    /// use numrs::{NdArray, DType, D};
+    /// use numrst::{NdArray, DType, D};
     /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
     ///
     /// let c = a.reshape((1, 6)).unwrap();

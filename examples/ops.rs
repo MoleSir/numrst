@@ -1,4 +1,4 @@
-use numrs::NdArray;
+use numrst::NdArray;
 
 #[allow(unused)]
 fn result_main() -> Result<(), Box<dyn std::error::Error>> {
