@@ -1,11 +1,11 @@
 use rand::rng;
 use rand_distr::{Distribution, StandardNormal, StandardUniform, Uniform};
 use crate::{Error, Result};
-use super::{DType, FloatDType, Layout, Shape, WithDType};
+use super::{DType, FloatDType, Layout, NumDType, Shape, WithDType};
 
 pub struct Storage<T>(Vec<T>);
 
-impl<T: WithDType> Storage<T> {
+impl<T: NumDType> Storage<T> {
     pub fn zeros(shape: &Shape) -> Self {
         Self(vec![T::zero(); shape.element_count()])
     }
@@ -14,7 +14,9 @@ impl<T: WithDType> Storage<T> {
         Self(vec![T::one(); shape.element_count()])
 
     }
+}
 
+impl<T: WithDType + rand_distr::uniform::SampleUniform> Storage<T> {
     pub fn rand_uniform(shape: &Shape, min: T, max: T) -> Result<Self> 
     where 
         StandardUniform: Distribution<T>,

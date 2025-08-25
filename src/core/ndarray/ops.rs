@@ -1,4 +1,4 @@
-use crate::{Error, FloatDType, Layout, Result, Shape, Storage, WithDType};
+use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, WithDType};
 use super::NdArray;
 
 macro_rules! binary_op_impl {
@@ -17,7 +17,7 @@ macro_rules! binary_op_impl {
     };
 }
 
-impl<T: WithDType> NdArray<T> {
+impl<T: NumDType> NdArray<T> {
     binary_op_impl!(add);
     binary_op_impl!(mul);
     binary_op_impl!(sub);
@@ -57,7 +57,7 @@ impl<T: WithDType> NdArray<T> {
     }
 }
 
-impl<T: WithDType> NdArray<T> {
+impl<T: NumDType> NdArray<T> {
     fn unary_op<U, F>(s: &Storage<T>, layout: &Layout, mut f: F) -> Storage<U> 
     where
         U: WithDType,

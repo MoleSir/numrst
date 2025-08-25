@@ -1,15 +1,16 @@
 use crate::{Result, Storage};
 
-use super::{DType, IntDType, IntGroup, WithDType};
+use super::{DType, IntDType, NumDType, WithDType};
 
 impl WithDType for u32 {
     const DTYPE: DType = DType::U32;
-    type Group = IntGroup;
 
     fn dtype() -> DType {
         DType::U32
     }
+}
 
+impl NumDType for u32 {
     fn min_value() -> Self {
         u32::MIN
     }
@@ -46,17 +47,9 @@ impl WithDType for u32 {
         self == other
     }
 
-    fn to_storage(data: Vec<Self>) -> Result<Storage<Self>> {
-        Ok(Storage::new(data))
-    }
-
-    fn to_filled_storage(self, len: usize) -> Result<Storage<Self>> {
-        Self::to_storage(vec![self; len])
-    }
-    
     fn to_range_storage(start: Self, end: Self) -> Result<Storage<Self>> {
         let vec: Vec<_> = (start..end).collect();
-        Self::to_storage(vec)
+        Ok(Storage::new(vec))
     }
 }
 

@@ -1,5 +1,5 @@
 use num_traits::Pow;
-use crate::{Dim, Layout, Result, Storage, WithDType};
+use crate::{Dim, Layout, NumDType, Result, Storage};
 use super::NdArray;
 
 macro_rules! reduce_impl {
@@ -10,7 +10,7 @@ macro_rules! reduce_impl {
     };
 }
 
-impl<T: WithDType> NdArray<T> {
+impl<T: NumDType> NdArray<T> {
     reduce_impl!(sum, ReduceSum);
     reduce_impl!(product, ReduceProduct);
     reduce_impl!(min, ReduceMin);
@@ -119,12 +119,12 @@ impl NdArray<f64> {
     }
 }
 
-impl<T: WithDType> NdArray<T> {
-    fn reduec_op<F, R: WithDType, D: Dim>(&self, dim: D, f: F, op_name: &'static str) -> Result<NdArray<R>> 
+impl<T: NumDType> NdArray<T> {
+    fn reduec_op<F, R: NumDType, D: Dim>(&self, dim: D, f: F, op_name: &'static str) -> Result<NdArray<R>> 
     where 
         F: Fn(DimArray<'_, T>) -> R
     {
-        fn _reduec_op<F, T: WithDType, R: WithDType>(src_storage: &Storage<T>, src_layout: &Layout, reduce_dim: usize, f: F) -> Result<Storage<R>> 
+        fn _reduec_op<F, T: NumDType, R: NumDType>(src_storage: &Storage<T>, src_layout: &Layout, reduce_dim: usize, f: F) -> Result<Storage<R>> 
         where 
             F: Fn(DimArray<'_, T>) -> R,
         {   
@@ -161,13 +161,13 @@ impl<T: WithDType> NdArray<T> {
     }
 }
 
-pub trait ReduceOp<D: WithDType> {
-    type Output: WithDType;
+pub trait ReduceOp<D: NumDType> {
+    type Output: NumDType;
     fn op(arr: DimArray<'_, D>) -> Self::Output;
 }
 
 pub struct ReduceSum;
-impl<D: WithDType> ReduceOp<D> for ReduceSum {
+impl<D: NumDType> ReduceOp<D> for ReduceSum {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter().sum::<D>()
@@ -175,7 +175,7 @@ impl<D: WithDType> ReduceOp<D> for ReduceSum {
 } 
 
 pub struct ReduceProduct;
-impl<D: WithDType> ReduceOp<D> for ReduceProduct {
+impl<D: NumDType> ReduceOp<D> for ReduceProduct {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter().product::<D>()
@@ -183,7 +183,7 @@ impl<D: WithDType> ReduceOp<D> for ReduceProduct {
 } 
 
 pub struct ReduceMin;
-impl<D: WithDType> ReduceOp<D> for ReduceMin {
+impl<D: NumDType> ReduceOp<D> for ReduceMin {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
@@ -198,7 +198,7 @@ impl<D: WithDType> ReduceOp<D> for ReduceMin {
 } 
 
 pub struct ReduceArgMin;
-impl<D: WithDType> ReduceOp<D> for ReduceArgMin {
+impl<D: NumDType> ReduceOp<D> for ReduceArgMin {
     type Output = u32;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
@@ -214,7 +214,7 @@ impl<D: WithDType> ReduceOp<D> for ReduceArgMin {
 } 
 
 pub struct ReduceMax;
-impl<D: WithDType> ReduceOp<D> for ReduceMax {
+impl<D: NumDType> ReduceOp<D> for ReduceMax {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
@@ -229,7 +229,7 @@ impl<D: WithDType> ReduceOp<D> for ReduceMax {
 } 
 
 pub struct ReduceArgMax;
-impl<D: WithDType> ReduceOp<D> for ReduceArgMax {
+impl<D: NumDType> ReduceOp<D> for ReduceArgMax {
     type Output = u32;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
@@ -251,7 +251,7 @@ pub struct DimArray<'a, T> {
     stride: usize
 }
 
-impl<'a, T: WithDType> DimArray<'a, T> {
+impl<'a, T: NumDType> DimArray<'a, T> {
     pub fn get(&self, index: usize) -> T {
         self.src[index * self.stride]
     }
@@ -270,7 +270,7 @@ impl<'a, T: WithDType> DimArray<'a, T> {
     }
 }
 
-impl<'a, T: WithDType> IntoIterator for DimArray<'a, T> {
+impl<'a, T: NumDType> IntoIterator for DimArray<'a, T> {
     type IntoIter = DimArrayIter<'a, T>;
     type Item = T;
     fn into_iter(self) -> Self::IntoIter {
@@ -286,7 +286,7 @@ pub struct DimArrayIter<'a, T> {
     index: usize,
 }
 
-impl<'a, T: WithDType> Iterator for DimArrayIter<'a, T> {
+impl<'a, T: NumDType> Iterator for DimArrayIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         if self.index >= self.array.size {

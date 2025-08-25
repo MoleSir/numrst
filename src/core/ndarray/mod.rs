@@ -11,7 +11,7 @@ mod broadcast;
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{DType, Dim, Layout, Shape, Storage, WithDType};
+use super::{DType, Dim, Layout, NumDType, Shape, Storage, WithDType};
 
 #[derive(Clone)]
 pub struct NdArray<D>(Arc<NdArrayImpl<D>>);
@@ -93,7 +93,9 @@ impl<T: WithDType> NdArray<T> {
     pub fn rank(&self) -> usize {
         self.shape().rank()
     }
+}
 
+impl<T: NumDType> NdArray<T> {
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
         self.iter().zip(other.iter()).all(|(a, b)| a.close(b, rtol, atol))
     }

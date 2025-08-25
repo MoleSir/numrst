@@ -1,8 +1,8 @@
 use num_traits::Zero;
-use crate::{Error, Layout, Result, Shape, Storage, WithDType};
+use crate::{Error, Layout, NumDType, Result, Shape, Storage};
 use super::NdArray;
 
-impl<T: WithDType> NdArray<T> {
+impl<T: NumDType> NdArray<T> {
     /// Returns the matrix-multiplication of the input tensor with the other provided tensor.
     ///
     /// # Arguments

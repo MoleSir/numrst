@@ -10,7 +10,8 @@ NumRs is the fundamental package for scientific computing with Rust.
 - [x] basic binary and unary op
 - [x] matmul 
 - [x] index op like numpy
-- [x] display 
+- [x] reduce op 
+- [x] simple display 
 
 
 
@@ -19,28 +20,31 @@ NumRs is the fundamental package for scientific computing with Rust.
 Create `NdArray`
 
 ```rust
-let arr = NdArray::new(1)?;
-let arr = NdArray::new(&[1.0f32, 2., 3.])?;
-let arr = NdArray::ones(1, DType::I32)?;
-let arr = NdArray::randn(0., 1., (1, 2, 3), DType::F64)?;
-let arr = NdArray::arange(0., 10.)?;
+  let arr = NdArray::new(1)?;
+  let arr = NdArray::new(&[1.0f32, 2., 3.])?;
+  let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]])?;
+  let arr = NdArray::<f32>::ones(1)?;
+  let arr = NdArray::randn(0.0f64, 1., (1, 2, 3))?;
+  let arr = NdArray::fill((2, 3, 4), 1.2)?;
+  let arr = NdArray::fill((10, 4, 4), 100u32)?;
+  let arr = NdArray::arange(0., 10.)?;
+  let ts = NdArray::trues((3, 4))?;
 ```
 
 Some basic op
 
 ```rust
-let a = NdArray::new(&[1.0f32, 2.0, 3.0])?;
-let b = NdArray::new(&[4.0f32, 5.0, 6.0])?;
-let c = a.add(&b)?;
-let c = a.sub(&b)?;
-let c = a.mul(&b)?;
-let c = a.div(&b)?;
-let c = a.exp()?;
-let c = a.relu()?;
+  let a = NdArray::new(&[1.0f32, 2., 3.])?;
+  let b = NdArray::new(&[1.0f32, 2., 3.])?;
+  let c = a.add(&b)?;
+  let c = a.sub(&b)?;
 
-let a = NdArray::arange(0., 12.).unwrap().reshape((2, 2, 3))?;
-let b = NdArray::arange(0., 12.).unwrap().reshape((2, 3, 2))?;
-let c = a.matmul(&b)?;
+  let a = NdArray::new(&[[1, 2, 3], [4, 5, 6]])?;
+  let sum = a.sum(1)?;
+
+  let a = NdArray::<f32>::randn(0., 1., (4, 4, 5))?;
+  let b = NdArray::<f32>::randn(0., 1., (4, 5, 3))?;
+  let c = a.matmul(&b)?;
 ```
 
 Usefull index op like NumPy

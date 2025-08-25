@@ -2,11 +2,13 @@ mod f32;
 mod f64;
 mod u32;
 mod i32;
+mod bool;
 use crate::Result;
 use super::Storage;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DType {
+    Bool, // boolean
     I32,  // signed 32-bit
     U32,  // unsigned 32-bit
     F32,  // 32-bit float
@@ -16,6 +18,7 @@ pub enum DType {
 impl DType {
     pub fn size_of(&self) -> usize {
         match self {
+            DType::Bool => std::mem::size_of::<bool>(),
             DType::I32 => std::mem::size_of::<i32>(),
             DType::U32 => std::mem::size_of::<u32>(),
             DType::F32 => std::mem::size_of::<f32>(),
@@ -35,6 +38,7 @@ impl DType {
 impl std::fmt::Display for DType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Bool => write!(f, "boolean"),
             Self::I32 => write!(f, "32-bit signed"),
             Self::U32 => write!(f, "32-bit unsigned"),
             Self::F32 => write!(f, "32-bit float"),
@@ -46,20 +50,26 @@ impl std::fmt::Display for DType {
 pub trait WithDType:
     Sized
     + Copy
-    + num_traits::NumAssign
     + std::cmp::PartialOrd
+    + std::cmp::PartialEq
     + std::fmt::Display
-    + std::iter::Sum
-    + std::iter::Product
-    + rand_distr::uniform::SampleUniform
-    + PartialOrd
     + 'static
     + Send
     + Sync
 {
     const DTYPE: DType;
-    type Group;
+    fn dtype() -> DType;
+    
+    // fn to_storage(data: Vec<Self>) -> Result<Storage<Self>>;
+    // fn to_filled_storage(self, len: usize) -> Result<Storage<Self>>;
+}
 
+pub trait NumDType : 
+    WithDType 
+  + num_traits::Num    
+  + std::iter::Sum
+  + std::iter::Product
+{
     fn min_value() -> Self;
     fn max_value() -> Self;
 
@@ -72,19 +82,11 @@ pub trait WithDType:
     fn maximum(lhs: Self, rhs: Self) -> Self;
     fn close(self, other: Self, rtol: f64, atol: f64) -> bool;
 
-    fn dtype() -> DType;
-    
-    fn to_storage(data: Vec<Self>) -> Result<Storage<Self>>;
-    fn to_filled_storage(self, len: usize) -> Result<Storage<Self>>;
     fn to_range_storage(start: Self, end: Self) -> Result<Storage<Self>>;
 }
 
-pub trait DTypeGroup { type Group; }
-pub enum IntGroup {}
-pub enum FloatGroup {}
-
 pub trait IntDType: 
-    WithDType<Group = IntGroup>
+    NumDType
     + num_traits::Bounded 
 {
     fn is_true(self) -> bool {
@@ -95,9 +97,14 @@ pub trait IntDType:
 }
 
 pub trait FloatDType: 
-    WithDType<Group = FloatGroup>
+    NumDType
     + num_traits::Float
 {
 }
 
+pub trait BoolDType:
+    NumDType
+{
+
+}
 

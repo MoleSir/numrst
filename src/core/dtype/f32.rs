@@ -2,12 +2,17 @@ use approx::relative_eq;
 
 use crate::{Result, Storage};
 
-use super::{DType, FloatDType, FloatGroup, WithDType};
+use super::{DType, FloatDType, NumDType, WithDType};
 
 impl WithDType for f32 {
     const DTYPE: DType = DType::F32;
-    type Group = FloatGroup;
 
+    fn dtype() -> DType {
+        DType::F32
+    }
+}
+
+impl NumDType for f32 {
     fn min_value() -> Self {
         <f32>::MIN
     }
@@ -43,18 +48,6 @@ impl WithDType for f32 {
     fn close(self, other: Self, rtol: f64, atol: f64) -> bool {
         relative_eq!(self, other, epsilon = atol as f32, max_relative = rtol as f32)
     }
-
-    fn dtype() -> DType {
-        DType::F32
-    }
-
-    fn to_storage(data: Vec<Self>) -> Result<Storage<Self>> {
-        Ok(Storage::new(data))
-    }
-
-    fn to_filled_storage(self, len: usize) -> Result<Storage<Self>> {
-        Self::to_storage(vec![self; len])
-    }
     
     fn to_range_storage(start: Self, end: Self) -> Result<Storage<Self>> {
         let mut vec = vec![];
@@ -63,7 +56,7 @@ impl WithDType for f32 {
             vec.push(v);
             v += 1.0;
         }
-        Self::to_storage(vec)
+        Ok(Storage::new(vec))
     }
 }
 

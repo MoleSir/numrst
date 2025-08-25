@@ -29,7 +29,9 @@ fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", arr.shape());
     println!("{}", arr.index(0)?.to_scalar()?);
     println!("{}", arr.index(9)?.to_scalar()?);
-    
+
+    let ts = NdArray::trues((3, 4))?;
+    println!("{}", ts);
 
     Ok(())
 }

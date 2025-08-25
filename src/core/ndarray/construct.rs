@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 use rand_distr::{Distribution, StandardNormal, StandardUniform};
-use crate::{Error, FloatDType, Layout, Result, Shape, Storage, WithDType};
+use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, WithDType};
 use super::{NdArray, NdArrayId, NdArrayImpl};
 
 impl<T: WithDType> NdArray<T> {
@@ -10,6 +10,19 @@ impl<T: WithDType> NdArray<T> {
         Ok(Self::from_storage(storage, shape))
     }
 
+    pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage<T>, shape: S) -> Self {
+        let dtype = storage.dtype();
+        let ndarray_ = NdArrayImpl {
+            id: NdArrayId::new(),
+            storage: Arc::new(RwLock::new(storage)),
+            layout: Layout::contiguous(shape),
+            dtype
+        };
+        NdArray(Arc::new(ndarray_))
+    }
+}
+
+impl<T: NumDType> NdArray<T> {
     pub fn zeros<S: Into<Shape>>(shape: S) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::zeros(&shape);
@@ -30,28 +43,6 @@ impl<T: WithDType> NdArray<T> {
         Self::ones(self.shape())
     }
 
-    pub fn rand<S: Into<Shape>>(min: T, max: T, shape: S) -> Result<Self> 
-    where 
-        StandardUniform: Distribution<T>
-    {
-        let shape = shape.into();
-        let storage = Storage::rand_uniform(&shape, min, max)?;
-        Ok(Self::from_storage(storage, shape))
-    }
-
-    pub fn rand_like(&self, min: T, max: T) -> Result<Self> 
-    where 
-        StandardUniform: Distribution<T>
-    {
-        Self::rand(min, max, self.shape())
-    }
-
-    pub fn fill<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
-        let shape: Shape = shape.into();
-        let storage = T::to_filled_storage(value, shape.element_count())?;
-        Ok(Self::from_storage(storage, shape))
-    }
-
     pub fn arange(start: T, end: T) -> Result<Self> {
         let storage = T::to_range_storage(start, end)?;
         let shape = storage.len();
@@ -63,19 +54,29 @@ impl<T: WithDType> NdArray<T> {
         if shape.element_count() != vec.len() {
             return Err(Error::Msg(format!("shape' element_count {} != vec.len {}", shape.element_count(), vec.len())));
         }
-        let storage = T::to_storage(vec)?;
+        let storage = Storage::new(vec);
+        Ok(Self::from_storage(storage, shape))
+    }
+}
+
+impl<T: WithDType + rand_distr::uniform::SampleUniform> NdArray<T> 
+where 
+    StandardUniform: Distribution<T>
+{
+    pub fn rand<S: Into<Shape>>(min: T, max: T, shape: S) -> Result<Self> {
+        let shape = shape.into();
+        let storage = Storage::rand_uniform(&shape, min, max)?;
         Ok(Self::from_storage(storage, shape))
     }
 
-    pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage<T>, shape: S) -> Self {
-        let dtype = storage.dtype();
-        let ndarray_ = NdArrayImpl {
-            id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
-            layout: Layout::contiguous(shape),
-            dtype
-        };
-        NdArray(Arc::new(ndarray_))
+    pub fn rand_like(&self, min: T, max: T) -> Result<Self> {
+        Self::rand(min, max, self.shape())
+    }
+
+    pub fn fill<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
+        let shape: Shape = shape.into();
+        let storage = Storage::new(vec![value; shape.element_count()]);
+        Ok(Self::from_storage(storage, shape))
     }
 }
 
@@ -94,6 +95,20 @@ where
     }
 }
 
+impl NdArray<bool> {
+    pub fn trues<S: Into<Shape>>(shape: S) -> Result<Self> {
+        let shape: Shape = shape.into();
+        let storage = Storage::new(vec![true; shape.element_count()]);
+        Ok(Self::from_storage(storage, shape))
+    }
+
+    pub fn falses<S: Into<Shape>>(shape: S) -> Result<Self> {
+        let shape: Shape = shape.into();
+        let storage = Storage::new(vec![false; shape.element_count()]);
+        Ok(Self::from_storage(storage, shape))
+    }
+}
+
 pub trait ToNdArray<T> {
     fn shape(&self) -> Result<Shape>;
     fn to_storage(self) -> Result<Storage<T>>;
@@ -105,7 +120,7 @@ impl<D: WithDType> ToNdArray<D> for D {
     }
 
     fn to_storage(self) -> Result<Storage<D>> {
-        D::to_storage([self].to_vec())
+        Ok(Storage::new([self].to_vec()))
     }
 }
 
@@ -115,7 +130,7 @@ impl<S: WithDType, const N: usize> ToNdArray<S> for &[S; N] {
     }
 
     fn to_storage(self) -> Result<Storage<S>> {
-        S::to_storage(self.to_vec())
+        Ok(Storage::new(self.to_vec()))
     }
 }
 
@@ -125,7 +140,7 @@ impl<S: WithDType> ToNdArray<S> for &[S] {
     }
 
     fn to_storage(self) -> Result<Storage<S>> {
-        S::to_storage(self.to_vec())
+        Ok(Storage::new(self.to_vec()))
     }
 }
 
@@ -137,7 +152,7 @@ impl<S: WithDType, const N1: usize, const N2: usize> ToNdArray<S>
     }
 
     fn to_storage(self) -> Result<Storage<S>> {
-        S::to_storage(self.concat())
+        Ok(Storage::new(self.concat()))
     }
 }
 
@@ -155,7 +170,8 @@ impl<S: WithDType, const N1: usize, const N2: usize, const N3: usize> ToNdArray<
                 vec.extend(self[i1][i2])
             }
         }
-        S::to_storage(vec)
+        Ok(Storage::new(vec))
+
     }
 }
 
@@ -175,7 +191,7 @@ impl<S: WithDType, const N1: usize, const N2: usize, const N3: usize, const N4: 
                 }
             }
         }
-        S::to_storage(vec)
+        Ok(Storage::new(vec))
     }
 }
 
@@ -185,6 +201,7 @@ impl<S: WithDType> ToNdArray<S> for Vec<S> {
     }
 
     fn to_storage(self) -> Result<Storage<S>> {
-        S::to_storage(self)
+        Ok(Storage::new(self))
+
     }
 }
