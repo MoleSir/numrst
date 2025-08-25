@@ -1,7 +1,10 @@
+mod f32;
+mod f64;
+mod u32;
+mod i32;
+
 use approx::relative_eq;
-
 use crate::Result;
-
 use super::Storage;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -128,6 +131,9 @@ pub trait WithDType:
 
     fn from_f64(v: f64) -> Self;
     fn to_f64(self) -> f64;
+    fn from_usize(v: usize) -> Self;
+    fn to_usize(self) -> usize;
+
     fn to_scalar(self) -> Scalar;
     fn dtype(&self) -> DType;
     
@@ -136,122 +142,13 @@ pub trait WithDType:
     fn to_range_storage(start: Self, end: Self) -> Result<Storage>;
 }
 
-macro_rules! with_int_dtype {
-    ($ty:ty, $dtype:ident) => {
-        impl WithDType for $ty {
-            const DTYPE: DType = DType::$dtype;
-
-            fn min_value() -> Self {
-                <$ty>::MIN
-            }
-
-            fn max_value() -> Self {
-                <$ty>::MAX
-            }
-
-            fn from_f64(v: f64) -> Self {
-                v as $ty
-            }
-
-            fn to_f64(self) -> f64 {
-                self as f64
-            }
-
-            fn to_scalar(self) -> Scalar {
-                Scalar::$dtype(self)
-            }
-
-            fn dtype(&self) -> DType {
-                DType::$dtype
-            }
-
-            fn to_storage(data: Vec<Self>) -> Result<Storage> {
-                Ok(Storage::$dtype(data))
-            }
-
-            fn to_filled_storage(self, len: usize) -> Result<Storage> {
-                Self::to_storage(vec![self; len])
-            }
-            
-            fn to_range_storage(start: Self, end: Self) -> Result<Storage> {
-                let vec: Vec<_> = (start..end).collect();
-                Self::to_storage(vec)
-            }
-        }
-
-        impl IntDType for $ty {
-            fn is_true(&self) -> bool {
-                *self != 0
-            }
-            fn as_usize(&self) -> usize {
-                *self as usize
-            }
-        }
-    }
-}
-
 pub trait IntDType: WithDType + num_traits::Bounded {
-    fn is_true(&self) -> bool;
-    fn as_usize(&self) -> usize;
-}
-
-pub trait FloatDType: WithDType {}
-
-with_int_dtype!(u32, U32);
-with_int_dtype!(i32, I32);
-
-macro_rules! with_float_dtype {
-    ($ty:ty, $dtype:ident) => {
-        impl WithDType for $ty {
-            const DTYPE: DType = DType::$dtype;
-
-            fn min_value() -> Self {
-                <$ty>::MIN
-            }
-
-            fn max_value() -> Self {
-                <$ty>::MAX
-            }
-
-            fn from_f64(v: f64) -> Self {
-                v as $ty
-            }
-
-            fn to_f64(self) -> f64 {
-                self as f64
-            }
-
-            fn to_scalar(self) -> Scalar {
-                Scalar::$dtype(self)
-            }
-
-            fn dtype(&self) -> DType {
-                DType::$dtype
-            }
-
-            fn to_storage(data: Vec<Self>) -> Result<Storage> {
-                Ok(Storage::$dtype(data))
-            }
-
-            fn to_filled_storage(self, len: usize) -> Result<Storage> {
-                Self::to_storage(vec![self; len])
-            }
-            
-            fn to_range_storage(start: Self, end: Self) -> Result<Storage> {
-                let mut vec = vec![];
-                let mut v = start;
-                while v < end {
-                    vec.push(v);
-                    v += 1.0;
-                }
-                Self::to_storage(vec)
-            }
-        }
-
-        impl FloatDType for $ty {
-        }
+    fn is_true(self) -> bool {
+        self != Self::zero()
     }
+    fn abs(self) -> Self;
+    fn neg(self) -> Self;
 }
 
-with_float_dtype!(f32, F32);
-with_float_dtype!(f64, F64);
+pub trait FloatDType: WithDType + num_traits::Float {
+}

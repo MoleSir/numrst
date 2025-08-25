@@ -19,7 +19,9 @@ impl NdArray {
     reduce_impl!(sum, ReduceSum);
     reduce_impl!(product, ReduceProduct);
     reduce_impl!(min, ReduceMin);
+    reduce_impl!(argmin, ReduceArgMin);
     reduce_impl!(max, ReduceMax);
+    reduce_impl!(argmax, ReduceArgMax);
     reduce_impl!(mean, ReduceMean);
     reduce_impl!(var, ReduceVar);
 
@@ -63,11 +65,11 @@ impl NdArray {
             }
             Storage::F32(vec) => {
                 let output = _reduce_op(vec, layout, dim, R::f32)?;
-                Ok(Storage::F32(output))
+                Ok(output.to_storage()?)
             }
             Storage::F64(vec) => {
                 let output = _reduce_op(vec, layout, dim,R::f64)?;
-                Ok(Storage::F64(output))
+                Ok(output.to_storage()?)
             }
         }
     }
@@ -77,16 +79,22 @@ impl NdArray {
 trait ReduceOp {
     type U32Ret: WithDType;
     type I32Ret: WithDType;
+    type F32Ret: WithDType;
+    type F64Ret: WithDType;
+
     fn u32<'a>(arr: DimArray<'a, u32>) -> Self::U32Ret;
     fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret;
-    fn f32<'a>(arr: DimArray<'a, f32>) -> f32;
-    fn f64<'a>(arr: DimArray<'a, f64>) -> f64;
+    fn f32<'a>(arr: DimArray<'a, f32>) -> Self::F32Ret;
+    fn f64<'a>(arr: DimArray<'a, f64>) -> Self::F64Ret;
 }
 
 struct ReduceSum;
 impl ReduceOp for ReduceSum {
     type I32Ret = i32;
     type U32Ret = u32;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
         Self::sum(arr)
     }
@@ -111,6 +119,9 @@ struct ReduceProduct;
 impl ReduceOp for ReduceProduct {
     type I32Ret = i32;
     type U32Ret = u32;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
         Self::product(arr)
     }
@@ -135,6 +146,9 @@ struct ReduceMin;
 impl ReduceOp for ReduceMin {
     type I32Ret = i32;
     type U32Ret = u32;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
         Self::min(arr)
     }
@@ -162,10 +176,85 @@ impl ReduceMin {
     }
 }
 
+struct ReduceArgMin;
+impl ReduceOp for ReduceArgMin {
+    type I32Ret = u32;
+    type U32Ret = u32;
+    type F32Ret = u32;
+    type F64Ret = u32;
+
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::argmin(arr)
+    }
+    fn i32<'a>(arr: DimArray<'a, i32>) -> u32 {
+        Self::argmin(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> u32 {
+        Self::argmin(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> u32 {
+        Self::argmin(arr)
+    }
+}
+
+impl ReduceArgMin {
+    fn argmin<'a, D: WithDType>(arr: DimArray<'a, D>) -> u32 {
+        assert!(arr.len() > 0);
+        arr.into_iter()
+            .enumerate()
+            .reduce(|(ia, a), (ib, b)| {
+                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Less) {
+                    (ia, a)
+                } else {
+                    (ib, b)
+                }
+            }).unwrap().0 as u32
+    }
+}
+
+struct ReduceArgMax;
+impl ReduceOp for ReduceArgMax {
+    type I32Ret = u32;
+    type U32Ret = u32;
+    type F32Ret = u32;
+    type F64Ret = u32;
+
+    fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
+        Self::argmax(arr)
+    }
+    fn i32<'a>(arr: DimArray<'a, i32>) -> u32 {
+        Self::argmax(arr)
+    }
+    fn f32<'a>(arr: DimArray<'a, f32>) -> u32 {
+        Self::argmax(arr)
+    }
+    fn f64<'a>(arr: DimArray<'a, f64>) -> u32 {
+        Self::argmax(arr)
+    }
+}
+
+impl ReduceArgMax {
+    fn argmax<'a, D: WithDType>(arr: DimArray<'a, D>) -> u32 {
+        assert!(arr.len() > 0);
+        arr.into_iter()
+            .enumerate()
+            .reduce(|(ia, a), (ib, b)| {
+                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Greater) {
+                    (ia, a)
+                } else {
+                    (ib, b)
+                }
+            }).unwrap().0 as u32
+    }
+}
+
 struct ReduceMax;
 impl ReduceOp for ReduceMax {
     type I32Ret = i32;
     type U32Ret = u32;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn u32<'a>(arr: DimArray<'a, u32>) -> u32 {
         Self::max(arr)
     }
@@ -197,6 +286,9 @@ struct ReduceMean;
 impl ReduceOp for ReduceMean {
     type I32Ret = f64;
     type U32Ret = f64;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret {
         let len = arr.len();
         let sum = ReduceSum::i32(arr);
@@ -226,6 +318,9 @@ struct ReduceVar;
 impl ReduceOp for ReduceVar {
     type I32Ret = f64;
     type U32Ret = f64;
+    type F32Ret = f32;
+    type F64Ret = f64;
+
     fn i32<'a>(arr: DimArray<'a, i32>) -> Self::I32Ret {
         let len = arr.len();
         let mean = ReduceMean::i32(arr.clone());
@@ -384,6 +479,17 @@ mod tests {
     }
 
     #[test]
+    fn test_aragmin_matrix_axis0() {
+        // [[1, 2, 3],
+        //  [3, 1, 0]]
+        // min(axis=0) -> [1, 1, 0]
+        let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
+        let m = arr.argmin(0).unwrap();
+        let expected = NdArray::new(&[0u32, 1, 1]).unwrap();
+        assert!(m.allclose(&expected, 1e-5, 1e-8));
+    }
+
+    #[test]
     fn test_max_matrix_axis1() {
         // [[1, 2, 3],
         //  [3, 1, 0]]
@@ -391,6 +497,17 @@ mod tests {
         let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
         let m = arr.max(1).unwrap();
         let expected = NdArray::new(&[3, 3]).unwrap();
+        assert!(m.allclose(&expected, 1e-5, 1e-8));
+    }
+
+    #[test]
+    fn test_argmax_matrix_axis1() {
+        // [[1, 2, 3],
+        //  [3, 1, 0]]
+        // max(axis=1) -> [3, 3]
+        let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
+        let m = arr.argmax(1).unwrap();
+        let expected = NdArray::new(&[2u32, 0]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
     }
 
