@@ -31,6 +31,9 @@ fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", arr.index(9)?.to_scalar()?);
 
     let ts = NdArray::trues((3, 4))?;
+    let bs = NdArray::new(&[[true, false], [false, true]])?;
+
+
     println!("{}", ts);
 
     Ok(())

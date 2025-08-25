@@ -152,6 +152,40 @@ impl Layout {
         Ok(Self::new(dims, stride, self.start_offset))
     }
 
+    pub fn broadcast_as<S: Into<Shape>>(&self, shape: S) -> Result<Self> {
+        let shape = shape.into();
+        if shape.rank() < self.shape().rank() {
+            return Err(Error::BroadcastIncompatibleShapes {
+                src_shape: self.shape().clone(),
+                dst_shape: shape,
+            });
+        }
+
+        let added_dims = shape.rank() - self.shape().rank();
+        let mut stride = vec![0; added_dims];
+        for (&dst_dim, (&src_dim, &src_stride)) in shape.dims()[added_dims..]
+            .iter()
+            .zip(self.dims().iter().zip(self.stride()))
+        {
+            let s = if dst_dim == src_dim {
+                src_stride
+            } else if src_dim != 1 {
+                return Err(Error::BroadcastIncompatibleShapes {
+                    src_shape: self.shape().clone(),
+                    dst_shape: shape,
+                });
+            } else {
+                0
+            };
+            stride.push(s)
+        }
+        Ok(Self {
+            shape,
+            stride,
+            start_offset: self.start_offset,
+        })
+    }
+
     pub fn to_index(&self) -> LayoutIndex {
         LayoutIndex::from_layout(self)
     }

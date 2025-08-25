@@ -54,6 +54,47 @@ impl Shape {
         self
     }
 
+
+    /// Check whether the two shapes are compatible for broadcast, and if it is the case return the
+    /// broadcasted shape. This is to be used for binary pointwise ops.
+    /// Copy from https://github.com/huggingface/candle
+    pub fn broadcast_shape_binary_op(&self, rhs: &Self, op: &'static str) -> Result<Shape> {
+        let lhs = self;
+        let lhs_dims = lhs.dims();
+        let rhs_dims = rhs.dims();
+        let lhs_ndims = lhs_dims.len();
+        let rhs_ndims = rhs_dims.len();
+        let bcast_ndims = usize::max(lhs_ndims, rhs_ndims);
+        let mut bcast_dims = vec![0; bcast_ndims];
+        for (idx, bcast_value) in bcast_dims.iter_mut().enumerate() {
+            let rev_idx = bcast_ndims - idx;
+            let l_value = if lhs_ndims < rev_idx {
+                1
+            } else {
+                lhs_dims[lhs_ndims - rev_idx]
+            };
+            let r_value = if rhs_ndims < rev_idx {
+                1
+            } else {
+                rhs_dims[rhs_ndims - rev_idx]
+            };
+            *bcast_value = if l_value == r_value {
+                l_value
+            } else if l_value == 1 {
+                r_value
+            } else if r_value == 1 {
+                l_value
+            } else {
+                Err(Error::ShapeMismatchBinaryOp {
+                    lhs: lhs.clone(),
+                    rhs: rhs.clone(),
+                    op,
+                })?
+            }
+        }
+        Ok(Shape::from(bcast_dims))
+    }
+
     pub(crate) fn stride_contiguous(&self) -> Vec<usize> {
         let mut stride = self.dims()
             .iter()

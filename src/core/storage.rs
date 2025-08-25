@@ -56,6 +56,10 @@ impl<T: WithDType> Storage<T> {
         &self.0
     }
 
+    pub fn data_mut(&mut self) -> &mut [T] {
+        &mut self.0
+    }
+
     pub fn dtype(&self) -> DType {
         T::dtype()
     }

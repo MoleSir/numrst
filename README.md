@@ -40,7 +40,7 @@ Some basic op
   let c = a.sub(&b)?;
 
   let a = NdArray::new(&[[1, 2, 3], [4, 5, 6]])?;
-  let sum = a.sum(1)?;
+  let sum = a.sum_axis(1)?;
 
   let a = NdArray::<f32>::randn(0., 1., (4, 4, 5))?;
   let b = NdArray::<f32>::randn(0., 1., (4, 5, 3))?;

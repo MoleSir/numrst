@@ -1,22 +1,40 @@
 use num_traits::Pow;
-use crate::{Dim, Layout, NumDType, Result, Storage};
+use crate::{Dim, Layout, NumDType, Result, Storage, WithDType};
 use super::NdArray;
 
 macro_rules! reduce_impl {
     ($fn_name:ident, $reduce:ident) => {
-        pub fn $fn_name<D: Dim>(&self, dim: D) -> Result<NdArray<<$reduce as ReduceOp<T>>::Output>> {
-            self.reduec_op(dim, $reduce::op, stringify!($fn_name))
+        pub fn $fn_name<D: Dim>(&self, axis: D) -> Result<NdArray<<$reduce as ReduceOp<T>>::Output>> {
+            self.reduec_op(axis, $reduce::op, stringify!($fn_name))
         }
     };
 }
 
 impl<T: NumDType> NdArray<T> {
-    reduce_impl!(sum, ReduceSum);
-    reduce_impl!(product, ReduceProduct);
-    reduce_impl!(min, ReduceMin);
-    reduce_impl!(argmin, ReduceArgMin);
-    reduce_impl!(max, ReduceMax);
-    reduce_impl!(argmax, ReduceArgMax);
+    reduce_impl!(sum_axis, ReduceSum);
+    reduce_impl!(product_axis, ReduceProduct);
+    reduce_impl!(min_axis, ReduceMin);
+    reduce_impl!(argmin_axis, ReduceArgMin);
+    reduce_impl!(max_axis, ReduceMax);
+    reduce_impl!(argmax_axis, ReduceArgMax);
+}
+
+impl<T: NumDType> NdArray<T> {
+    pub fn sum(&self) -> T {
+        self.iter().sum::<T>()
+    }
+
+    pub fn product(&self) -> T {
+        self.iter().product::<T>()
+    }
+
+    pub fn min(&self) -> T {
+        self.iter().reduce(|acc, e| T::minimum(acc, e)).unwrap()
+    }
+
+    pub fn max(&self) -> T {
+        self.iter().reduce(|acc, e| T::maximum(acc, e)).unwrap()
+    }
 }
 
 impl NdArray<i32> {
@@ -119,12 +137,30 @@ impl NdArray<f64> {
     }
 }
 
-impl<T: NumDType> NdArray<T> {
-    fn reduec_op<F, R: NumDType, D: Dim>(&self, dim: D, f: F, op_name: &'static str) -> Result<NdArray<R>> 
+impl NdArray<bool> {
+    pub fn all(&self) -> bool {
+        self.iter().all(|a| a)
+    }
+
+    pub fn any(&self) -> bool {
+        self.iter().any(|a| a)
+    } 
+
+    pub fn all_axis<D: Dim>(&self, axis: D) -> Result<NdArray<bool>> {
+        self.reduec_op(axis, ReduceAll::op, "all")
+    }
+
+    pub fn any_axis<D: Dim>(&self, axis: D) -> Result<NdArray<bool>> {
+        self.reduec_op(axis, ReduceAny::op, "any")
+    }
+}
+
+impl<T: WithDType> NdArray<T> {
+    fn reduec_op<F, R: WithDType, D: Dim>(&self, dim: D, f: F, op_name: &'static str) -> Result<NdArray<R>> 
     where 
         F: Fn(DimArray<'_, T>) -> R
     {
-        fn _reduec_op<F, T: NumDType, R: NumDType>(src_storage: &Storage<T>, src_layout: &Layout, reduce_dim: usize, f: F) -> Result<Storage<R>> 
+        fn _reduec_op<F, T: WithDType, R: WithDType>(src_storage: &Storage<T>, src_layout: &Layout, reduce_dim: usize, f: F) -> Result<Storage<R>> 
         where 
             F: Fn(DimArray<'_, T>) -> R,
         {   
@@ -161,9 +197,25 @@ impl<T: NumDType> NdArray<T> {
     }
 }
 
-pub trait ReduceOp<D: NumDType> {
-    type Output: NumDType;
+pub trait ReduceOp<D: WithDType> {
+    type Output: WithDType;
     fn op(arr: DimArray<'_, D>) -> Self::Output;
+}
+
+pub struct ReduceAll;
+impl ReduceOp<bool> for ReduceAll {
+    type Output = bool;
+    fn op(arr: DimArray<'_, bool>) -> Self::Output {
+        arr.into_iter().all(|b| b)
+    }
+}
+
+pub struct ReduceAny;
+impl ReduceOp<bool> for ReduceAny {
+    type Output = bool;
+    fn op(arr: DimArray<'_, bool>) -> Self::Output {
+        arr.into_iter().any(|b| b)
+    }
 }
 
 pub struct ReduceSum;
@@ -187,13 +239,7 @@ impl<D: NumDType> ReduceOp<D> for ReduceMin {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
-            .reduce(|a, b| {
-                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Less) {
-                    a
-                } else {
-                    b
-                }
-            }).unwrap()
+            .reduce(|a, b| D::minimum(a, b)).unwrap()
     }
 } 
 
@@ -218,13 +264,7 @@ impl<D: NumDType> ReduceOp<D> for ReduceMax {
     type Output = D;
     fn op(arr: DimArray<'_, D>) -> Self::Output {
         arr.into_iter()
-            .reduce(|a, b| {
-                if a.partial_cmp(&b) == Some(std::cmp::Ordering::Greater) {
-                    a
-                } else {
-                    b
-                }
-            }).unwrap()
+            .reduce(|a, b| D::maximum(a, b)).unwrap()
     }
 } 
 
@@ -251,7 +291,7 @@ pub struct DimArray<'a, T> {
     stride: usize
 }
 
-impl<'a, T: NumDType> DimArray<'a, T> {
+impl<'a, T: WithDType> DimArray<'a, T> {
     pub fn get(&self, index: usize) -> T {
         self.src[index * self.stride]
     }
@@ -270,7 +310,7 @@ impl<'a, T: NumDType> DimArray<'a, T> {
     }
 }
 
-impl<'a, T: NumDType> IntoIterator for DimArray<'a, T> {
+impl<'a, T: WithDType> IntoIterator for DimArray<'a, T> {
     type IntoIter = DimArrayIter<'a, T>;
     type Item = T;
     fn into_iter(self) -> Self::IntoIter {
@@ -286,7 +326,7 @@ pub struct DimArrayIter<'a, T> {
     index: usize,
 }
 
-impl<'a, T: NumDType> Iterator for DimArrayIter<'a, T> {
+impl<'a, T: WithDType> Iterator for DimArrayIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         if self.index >= self.array.size {
@@ -309,7 +349,7 @@ mod tests {
         //  [3, 4, 5]]
         // sum(axis=0) -> [4, 6, 8]
         let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
-        let s = arr.sum(0).unwrap();
+        let s = arr.sum_axis(0).unwrap();
         let expected = NdArray::new(&[4, 6, 8]).unwrap();
         assert!(s.allclose(&expected, 1e-5, 1e-8));
     }
@@ -320,7 +360,7 @@ mod tests {
         //  [3, 4, 5]]
         // sum(axis=1) -> [6, 12]
         let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
-        let s = arr.sum(1).unwrap();
+        let s = arr.sum_axis(1).unwrap();
         let expected = NdArray::new(&[6, 12]).unwrap();
         assert!(s.allclose(&expected, 1e-5, 1e-8));
     }
@@ -331,8 +371,8 @@ mod tests {
         // [[1,1,1],
         //  [1,1,1]]
         let arr = NdArray::ones((2, 3)).unwrap();
-        let s0 = arr.sum(0).unwrap(); // -> [2,2,2]
-        let s1 = arr.sum(1).unwrap(); // -> [3,3]
+        let s0 = arr.sum_axis(0).unwrap(); // -> [2,2,2]
+        let s1 = arr.sum_axis(1).unwrap(); // -> [3,3]
 
         let expected0 = NdArray::new(&[2, 2, 2]).unwrap();
         let expected1 = NdArray::new(&[3, 3]).unwrap();
@@ -347,7 +387,7 @@ mod tests {
         //  [3, 4, 5]]
         // product(axis=0) -> [3, 8, 15]
         let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
-        let p = arr.product(0).unwrap();
+        let p = arr.product_axis(0).unwrap();
         let expected = NdArray::new(&[3, 8, 15]).unwrap();
         assert!(p.allclose(&expected, 1e-5, 1e-8));
     }
@@ -358,7 +398,7 @@ mod tests {
         //  [3, 1, 0]]
         // min(axis=0) -> [1, 1, 0]
         let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
-        let m = arr.min(0).unwrap();
+        let m = arr.min_axis(0).unwrap();
         let expected = NdArray::new(&[1, 1, 0]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
     }
@@ -369,7 +409,7 @@ mod tests {
         //  [3, 1, 0]]
         // min(axis=0) -> [1, 1, 0]
         let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
-        let m = arr.argmin(0).unwrap();
+        let m = arr.argmin_axis(0).unwrap();
         let expected = NdArray::new(&[0u32, 1, 1]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
     }
@@ -380,7 +420,7 @@ mod tests {
         //  [3, 1, 0]]
         // max(axis=1) -> [3, 3]
         let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
-        let m = arr.max(1).unwrap();
+        let m = arr.max_axis(1).unwrap();
         let expected = NdArray::new(&[3, 3]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
     }
@@ -391,7 +431,7 @@ mod tests {
         //  [3, 1, 0]]
         // max(axis=1) -> [3, 3]
         let arr = NdArray::new(&[[1, 2, 3], [3, 1, 0]]).unwrap();
-        let m = arr.argmax(1).unwrap();
+        let m = arr.argmax_axis(1).unwrap();
         let expected = NdArray::new(&[2u32, 0]).unwrap();
         assert!(m.allclose(&expected, 1e-5, 1e-8));
     }
@@ -422,7 +462,7 @@ mod tests {
         // NumPy: np.var([1, 2, 3]) = 2/3 = 0.666...
         let arr: NdArray<f64> = NdArray::new(&[1.0f64, 2.0, 3.0]).unwrap();
         let v = arr.var(0).unwrap();
-        let expected = NdArray::new(&[2.0 / 3.0]).unwrap();
+        let expected = NdArray::new(2.0 / 3.0).unwrap();
         assert!(v.allclose(&expected, 1e-6, 1e-12));
     }
 
@@ -448,5 +488,55 @@ mod tests {
         let v = arr.var(1).unwrap();
         let expected = NdArray::new(&[2.0/3.0, 2.0/3.0]).unwrap();
         assert!(v.allclose(&expected, 1e-6, 1e-12));
+    }
+
+
+    #[test]
+    fn test_sum_1d() {
+        let arr = NdArray::new(&[1, 2, 3, 4]).unwrap();
+        assert_eq!(arr.sum(), 10);
+    }
+
+    #[test]
+    fn test_sum_2d() {
+        let arr = NdArray::new(&[[1, 2], [3, 4]]).unwrap();
+        assert_eq!(arr.sum(), 10);
+    }
+
+    #[test]
+    fn test_product() {
+        let arr = NdArray::new(&[1, 2, 3, 4]).unwrap();
+        assert_eq!(arr.product(), 24);
+    }
+
+    #[test]
+    fn test_min_max_1d() {
+        let arr = NdArray::new(&[5, 2, 9, -1, 0]).unwrap();
+        assert_eq!(arr.min(), -1);
+        assert_eq!(arr.max(), 9);
+    }
+
+    #[test]
+    fn test_min_max_2d() {
+        let arr = NdArray::new(&[[3, 7, 1], [9, -2, 5]]).unwrap();
+        assert_eq!(arr.min(), -2);
+        assert_eq!(arr.max(), 9);
+    }
+
+    #[test]
+    fn test_all_same() {
+        let arr = NdArray::fill((3, 3), 7).unwrap();
+        assert_eq!(arr.sum(), 7 * 9);
+        assert_eq!(arr.product(), 7_i32.pow(9));
+        assert_eq!(arr.min(), 7);
+        assert_eq!(arr.max(), 7);
+    }
+
+    #[test]
+    fn test_float_array() {
+        let arr = NdArray::new(&[1.0f32, -3.5, 2.5]).unwrap();
+        assert!((arr.sum() - 0.0).abs() < 1e-6);
+        assert_eq!(arr.min(), -3.5);
+        assert_eq!(arr.max(), 2.5);
     }
 }

@@ -4,12 +4,38 @@ use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, WithDTy
 use super::{NdArray, NdArrayId, NdArrayImpl};
 
 impl<T: WithDType> NdArray<T> {
+    /// Creates a new `NdArray` from any supported Rust array or slice.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::new(&[1, 2, 3]).unwrap();
+    /// println!("{}", a.shape());
+    /// ```
     pub fn new<A: ToNdArray<T>>(array: A) -> Result<Self> {
         let shape = array.shape()?;
         let storage = array.to_storage()?;
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates an array filled with a constant `value`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::fill((2, 2), 7).unwrap();
+    /// println!("{}", a);
+    /// ```
+    pub fn fill<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
+        let shape: Shape = shape.into();
+        let storage = Storage::new(vec![value; shape.element_count()]);
+        Ok(Self::from_storage(storage, shape))
+    }
+
+    /// Creates a new `NdArray` directly from a storage buffer and shape.
+    ///
+    /// Typically used internally, but can also be used when you already
+    /// have a `Storage<T>` prepared.
     pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage<T>, shape: S) -> Self {
         let dtype = storage.dtype();
         let ndarray_ = NdArrayImpl {
@@ -23,32 +49,74 @@ impl<T: WithDType> NdArray<T> {
 }
 
 impl<T: NumDType> NdArray<T> {
+    /// Creates an array of zeros with the given shape.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn zeros<S: Into<Shape>>(shape: S) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::zeros(&shape);
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates a zero-filled array with the same shape as `self`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::<i32>::ones((2, 2)).unwrap();
+    /// let b = a.zero_like().unwrap();
+    /// println!("{}", b);
+    /// ```
     pub fn zero_like(&self) -> Result<Self> {
         Self::zeros(self.shape())
     }
 
+    /// Creates an array of ones with the given shape.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::<f64>::ones((3, 3)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn ones<S: Into<Shape>>(shape: S) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::ones(&shape);
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates a one-filled array with the same shape as `self`.
     pub fn ones_like(&self) -> Result<Self> {
         Self::ones(self.shape())
     }
 
+    /// Creates a 1-D array with values from `start` up to (but not including) `end`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::arange(0., 5.).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn arange(start: T, end: T) -> Result<Self> {
         let storage = T::to_range_storage(start, end)?;
         let shape = storage.len();
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates an array from a flat `Vec<T>` and explicit shape.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::from_vec(vec![1, 2, 3, 4], (2, 2)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn from_vec<S: Into<Shape>>(vec: Vec<T>, shape: S) -> Result<Self> {
         let shape: Shape = shape.into();
         if shape.element_count() != vec.len() {
@@ -63,20 +131,23 @@ impl<T: WithDType + rand_distr::uniform::SampleUniform> NdArray<T>
 where 
     StandardUniform: Distribution<T>
 {
+    /// Creates an array with uniformly distributed random values in `[min, max)`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::<f32>::rand(0., 1., (2, 3)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn rand<S: Into<Shape>>(min: T, max: T, shape: S) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::rand_uniform(&shape, min, max)?;
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates a random array with the same shape as `self`.
     pub fn rand_like(&self, min: T, max: T) -> Result<Self> {
         Self::rand(min, max, self.shape())
-    }
-
-    pub fn fill<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
-        let shape: Shape = shape.into();
-        let storage = Storage::new(vec![value; shape.element_count()]);
-        Ok(Self::from_storage(storage, shape))
     }
 }
 
@@ -84,24 +155,43 @@ impl<F: FloatDType> NdArray<F>
 where 
     StandardNormal: Distribution<F>
 {
+    /// Creates an array with normally distributed random values
+    /// with given `mean` and `std`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::<f64>::randn(0.0, 1.0, (2, 2)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn randn<S: Into<Shape>>(mean: F, std: F, shape: S) -> Result<Self> {
         let shape = shape.into();
         let storage = Storage::rand_normal(&shape, mean, std)?;
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates a normal-distributed random array with the same shape as `self`.
     pub fn randn_like(&self, mean: F, std: F) -> Result<Self> {
         Self::randn(mean, std, self.shape())
     }
 }
 
 impl NdArray<bool> {
+    /// Creates a boolean array filled with `true`.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::trues((2, 2)).unwrap();
+    /// println!("{}", a);
+    /// ```
     pub fn trues<S: Into<Shape>>(shape: S) -> Result<Self> {
         let shape: Shape = shape.into();
         let storage = Storage::new(vec![true; shape.element_count()]);
         Ok(Self::from_storage(storage, shape))
     }
 
+    /// Creates a boolean array filled with `false`.
     pub fn falses<S: Into<Shape>>(shape: S) -> Result<Self> {
         let shape: Shape = shape.into();
         let storage = Storage::new(vec![false; shape.element_count()]);

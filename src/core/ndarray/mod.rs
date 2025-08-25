@@ -3,7 +3,7 @@ mod indexer;
 mod iter;
 mod display;
 mod shape;
-mod ops;
+mod arith;
 mod matmul;
 mod reduce;
 mod broadcast;
@@ -93,10 +93,17 @@ impl<T: WithDType> NdArray<T> {
     pub fn rank(&self) -> usize {
         self.shape().rank()
     }
+
+    pub fn to_vec(&self) -> Vec<T> {
+        self.iter().collect()
+    }
 }
 
 impl<T: NumDType> NdArray<T> {
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
+        if self.shape() != other.shape() {
+            return false;
+        }
         self.iter().zip(other.iter()).all(|(a, b)| a.close(b, rtol, atol))
     }
 }
