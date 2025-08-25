@@ -2,7 +2,7 @@
 name = "numrst"
 version = "0.1.0"
 edition = "2024"
-keywords = ["scientific-computing", "math", "n-dim-array", "type safe"]
+keywords = ["scientific-computing", "math", "n-dim-array"]
 description = "Fundamental package for scientific computing"
 repository = "https://github.com/MoleSir/numrst.git"
 license = "MIT"
