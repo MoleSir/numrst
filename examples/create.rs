@@ -1,4 +1,4 @@
-use numrs::{DType, IndexOp, NdArray};
+use numrs::{IndexOp, NdArray};
 
 #[allow(unused)]
 fn result_main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,10 +13,10 @@ fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]])?;
     println!("{}", arr.shape());
 
-    let arr = NdArray::ones(1, DType::I32)?;
+    let arr = NdArray::<f32>::ones(1)?;
     println!("{} {}", arr.shape(), arr.dtype());
 
-    let arr = NdArray::randn(0., 1., (1, 2, 3), DType::F64)?;
+    let arr = NdArray::randn(0.0f64, 1., (1, 2, 3))?;
     println!("{} {}", arr.shape(), arr.dtype());
 
     let arr = NdArray::fill((2, 3, 4), 1.2)?;

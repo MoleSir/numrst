@@ -1,9 +1,8 @@
 use num_traits::Zero;
-
-use crate::{Error, Layout, Result, Shape, Storage};
+use crate::{Error, Layout, Result, Shape, Storage, WithDType};
 use super::NdArray;
 
-impl NdArray {
+impl<T: WithDType> NdArray<T> {
     /// Returns the matrix-multiplication of the input tensor with the other provided tensor.
     ///
     /// # Arguments
@@ -12,7 +11,7 @@ impl NdArray {
     /// * `rhs` - A tensor with dimensions `b1, b2, ..., bi, k, n`.
     ///
     /// The resulting tensor has dimensions `b1, b2, ..., bi, m, n`.
-    pub fn matmul(&self, rhs: &NdArray) -> Result<NdArray> {
+    pub fn matmul(&self, rhs: &Self) -> Result<Self> {
         let a_dims = self.shape().dims();
         let b_dims = rhs.shape().dims();
 
@@ -33,7 +32,7 @@ impl NdArray {
 
         let c_shape = Shape::from(&a_dims[..dim - 2]).extend(&[m, n]);
         if c_shape.element_count() == 0 || k == 0 {
-            return NdArray::zeros(c_shape, self.dtype());
+            return Self::zeros(c_shape);
         }
         let batching: usize = a_dims[..dim - 2].iter().product();
         let batching_b: usize = b_dims[..dim - 2].iter().product();
@@ -52,97 +51,69 @@ impl NdArray {
             &rhs.storage(),
             rhs.layout(),
             (batching, m, n, k),
-        )?;
+        );
 
         Ok(Self::from_storage(c_storage, c_shape))
     }
 
     fn do_matmul(
-        lhs: &Storage, lhs_layout: &Layout,
-        rhs: &Storage, rhs_layout: &Layout,
+        lhs: &Storage<T>, lhs_layout: &Layout, 
+        rhs: &Storage<T>, rhs_layout: &Layout, 
         bmnk: (usize, usize, usize, usize)
-    ) -> Result<Storage> {
-        return match (lhs, rhs) {
-            (Storage::F32(lhs), Storage::F32(rhs)) => {
-                Ok(Storage::F32(_matmul(lhs, lhs_layout, rhs, rhs_layout, bmnk)))
-            }
-            (Storage::F64(lhs), Storage::F64(rhs)) => {
-                Ok(Storage::F64(_matmul(lhs, lhs_layout, rhs, rhs_layout, bmnk)))
-            }
-            (Storage::U32(lhs), Storage::U32(rhs)) => {
-                Ok(Storage::U32(_matmul(lhs, lhs_layout, rhs, rhs_layout, bmnk)))
-            }
-            (Storage::I32(lhs), Storage::I32(rhs)) => {
-                Ok(Storage::I32(_matmul(lhs, lhs_layout, rhs, rhs_layout, bmnk)))
-            }
-            _ => {
-                // This should be covered by the dtype check above.
-                Err(Error::DTypeMismatchBinaryOp {
-                    lhs: lhs.dtype(),
-                    rhs: rhs.dtype(),
-                    op: "matmul",
-                })
-            }
-        };
+    ) -> Storage<T> 
+        where T: num_traits::Num + Copy + Zero
+    {
+        let lhs = lhs.data();
+        let rhs = rhs.data();
 
-    
-        // lhs and rhs may not contiguous, but dst must be contiguous
-        fn _matmul<T>(
-            lhs: &[T], lhs_layout: &Layout, 
-            rhs: &[T], rhs_layout: &Layout, 
-            bmnk: (usize, usize, usize, usize)
-        ) -> Vec<T> 
-            where T: num_traits::Num + Copy + Zero
-        {
-            // l (b.., m, k)
-            // r (b.., k, n)
-            let lhs_rank = lhs_layout.shape().rank();
-            let rhs_rank = rhs_layout.shape().rank();
-            assert!(lhs_rank == rhs_rank && rhs_rank >= 2);
-            let (bs, ms, ns, ks) = bmnk;
-            assert_eq!(lhs_layout.dims()[lhs_rank - 2], ms);
-            assert_eq!(lhs_layout.dims()[lhs_rank - 1], ks);
-            assert_eq!(rhs_layout.dims()[rhs_rank - 2], ks);
-            assert_eq!(rhs_layout.dims()[rhs_rank - 1], ns);
-            let mut dst = vec![T::zero(); bs * ms * ns];
+        // l (b.., m, k)
+        // r (b.., k, n)
+        let lhs_rank = lhs_layout.shape().rank();
+        let rhs_rank = rhs_layout.shape().rank();
+        assert!(lhs_rank == rhs_rank && rhs_rank >= 2);
+        let (bs, ms, ns, ks) = bmnk;
+        assert_eq!(lhs_layout.dims()[lhs_rank - 2], ms);
+        assert_eq!(lhs_layout.dims()[lhs_rank - 1], ks);
+        assert_eq!(rhs_layout.dims()[rhs_rank - 2], ks);
+        assert_eq!(rhs_layout.dims()[rhs_rank - 1], ns);
+        let mut dst = vec![T::zero(); bs * ms * ns];
 
-            let l_batch_stride = ms * lhs_layout.stride()[lhs_rank - 2];
-            let r_batch_stride = ks * rhs_layout.stride()[rhs_rank - 2];
-            let dst_batch_stride = ms * ns;
+        let l_batch_stride = ms * lhs_layout.stride()[lhs_rank - 2];
+        let r_batch_stride = ks * rhs_layout.stride()[rhs_rank - 2];
+        let dst_batch_stride = ms * ns;
 
-            let l_last_stride = lhs_layout.stride()[lhs_rank - 1];
-            let r_last_stride = rhs_layout.stride()[rhs_rank - 1];
-            let l_sec_last_stride = lhs_layout.stride()[lhs_rank - 2];
-            let r_sec_last_stride = rhs_layout.stride()[rhs_rank - 2];
+        let l_last_stride = lhs_layout.stride()[lhs_rank - 1];
+        let r_last_stride = rhs_layout.stride()[rhs_rank - 1];
+        let l_sec_last_stride = lhs_layout.stride()[lhs_rank - 2];
+        let r_sec_last_stride = rhs_layout.stride()[rhs_rank - 2];
 
-            // For each batch
-            for b in 0..bs {
-                let lhs_ = &lhs[lhs_layout.start_offset() + b * l_batch_stride .. ];
-                let rhs_ = &rhs[rhs_layout.start_offset() + b * r_batch_stride .. ]; 
-                let dst_ = &mut dst[b * dst_batch_stride .. ];
+        // For each batch
+        for b in 0..bs {
+            let lhs_ = &lhs[lhs_layout.start_offset() + b * l_batch_stride .. ];
+            let rhs_ = &rhs[rhs_layout.start_offset() + b * r_batch_stride .. ]; 
+            let dst_ = &mut dst[b * dst_batch_stride .. ];
 
-                for m in 0..ms {
-                    // lhs_'s m row
-                    let row = &lhs_[m * l_sec_last_stride ..];
+            for m in 0..ms {
+                // lhs_'s m row
+                let row = &lhs_[m * l_sec_last_stride ..];
 
-                    for n in 0..ns {
-                        // rhs_'s n col
-                        let col = &rhs_[n * r_last_stride ..];
+                for n in 0..ns {
+                    // rhs_'s n col
+                    let col = &rhs_[n * r_last_stride ..];
 
-                        let mut v = T::zero();
-                        for k in 0..ks {
-                            // row's k  * col's k
-                            let l = row[k * l_last_stride];
-                            let r = col[k * r_sec_last_stride];
-                            v = v + l * r;
-                        }
-                        dst_[m * ns + n] = v;
+                    let mut v = T::zero();
+                    for k in 0..ks {
+                        // row's k  * col's k
+                        let l = row[k * l_last_stride];
+                        let r = col[k * r_sec_last_stride];
+                        v = v + l * r;
                     }
+                    dst_[m * ns + n] = v;
                 }
             }
-            
-            dst
         }
+        
+        Storage::new(dst)
     }
 }
 
@@ -206,7 +177,7 @@ mod tests {
         let expected = NdArray::from_vec(vals, (2, 2)).unwrap();
         assert!(sub_a.allclose(&expected, 0.0, 0.0));
 
-        let b = NdArray::randn(0.0, 1.0, (2, 5), DType::F64).unwrap();
+        let b = NdArray::randn(0.0, 1.0, (2, 5)).unwrap();
 
         let res = sub_a.matmul(&b).unwrap();
         let res_expected = expected.matmul(&b).unwrap();

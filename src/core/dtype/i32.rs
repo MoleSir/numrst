@@ -1,11 +1,12 @@
 use crate::{Result, Storage};
 
-use super::{DType, IntDType, Scalar, WithDType};
+use super::{DType, IntDType, IntGroup, WithDType};
 
 impl WithDType for i32 {
     const DTYPE: DType = DType::I32;
+    type Group = IntGroup;
 
-    fn dtype(&self) -> DType {
+    fn dtype() -> DType {
         DType::I32
     }
 
@@ -33,19 +34,27 @@ impl WithDType for i32 {
         self as usize
     }
     
-    fn to_scalar(self) -> Scalar {
-        Scalar::I32(self)
+    fn minimum(lhs: Self, rhs: Self) -> Self {
+        if lhs > rhs { rhs } else { lhs }
     }
 
-    fn to_storage(data: Vec<Self>) -> Result<Storage> {
-        Ok(Storage::I32(data))
+    fn maximum(lhs: Self, rhs: Self) -> Self {
+        if lhs < rhs { rhs } else { lhs }
     }
 
-    fn to_filled_storage(self, len: usize) -> Result<Storage> {
+    fn close(self, other: Self, _rtol: f64, _atol: f64) -> bool {
+        self == other
+    }
+
+    fn to_storage(data: Vec<Self>) -> Result<Storage<Self>> {
+        Ok(Storage::new(data))
+    }
+
+    fn to_filled_storage(self, len: usize) -> Result<Storage<Self>> {
         Self::to_storage(vec![self; len])
     }
     
-    fn to_range_storage(start: Self, end: Self) -> Result<Storage> {
+    fn to_range_storage(start: Self, end: Self) -> Result<Storage<Self>> {
         let vec: Vec<_> = (start..end).collect();
         Self::to_storage(vec)
     }

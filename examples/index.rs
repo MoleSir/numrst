@@ -1,8 +1,8 @@
-use numrs::{rng, DType, IndexOp, NdArray, Range};
+use numrs::{rng, IndexOp, NdArray, Range};
 
 #[allow(unused)]
 fn result_main() -> Result<(), Box<dyn std::error::Error>> {
-    let arr = NdArray::zeros((5, 5, 5), DType::U32)?;
+    let arr = NdArray::<u32>::zeros((5, 5, 5))?;
 
     let sub_arr = arr.index(1)?;
     println!("{:?}", sub_arr.shape());

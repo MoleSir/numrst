@@ -1,6 +1,6 @@
-use crate::NdArray;
+use crate::{NdArray, WithDType};
 
-pub fn norm(array: &NdArray) -> f64 {
+pub fn norm<T: WithDType>(array: &NdArray<T>) -> f64 {
     let sum = array.iter()
         .map(|scale| scale.to_f64())
         .map(|v| v.powf(2.0))

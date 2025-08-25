@@ -1,10 +1,8 @@
 use std::fmt;
-
-use crate::Storage;
-
+use crate::WithDType;
 use super::NdArray;
 
-impl fmt::Display for NdArray {
+impl<T: WithDType> fmt::Display for NdArray<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let impl_ref = &self.0;
         let shape = self.dims();
@@ -13,12 +11,7 @@ impl fmt::Display for NdArray {
             return write!(f, "[]");
         }
 
-        match &*impl_ref.storage.read().unwrap() {
-            Storage::U32(data) => fmt_ndarray(f, data, shape),
-            Storage::I32(data) => fmt_ndarray(f, data, shape),
-            Storage::F32(data) => fmt_ndarray(f, data, shape),
-            Storage::F64(data) => fmt_ndarray(f, data, shape),
-        }
+        fmt_ndarray(f, &*impl_ref.storage.read().unwrap().data(), shape)
     }
 }
 

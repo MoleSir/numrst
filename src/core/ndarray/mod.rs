@@ -11,10 +11,10 @@ mod broadcast;
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{DType, Dim, Layout, Scalar, Shape, Storage};
+use super::{DType, Dim, Layout, Shape, Storage, WithDType};
 
 #[derive(Clone)]
-pub struct NdArray(Arc<NdArrayImpl>);
+pub struct NdArray<D>(Arc<NdArrayImpl<D>>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NdArrayId(usize);
@@ -27,19 +27,19 @@ impl NdArrayId {
     }
 }
 
-pub struct NdArrayImpl {
+pub struct NdArrayImpl<T> {
     id: NdArrayId,
-    storage: Arc<RwLock<Storage>>,
+    storage: Arc<RwLock<Storage<T>>>,
     layout: Layout,
     dtype: DType,
 }
 
-impl NdArray {
+impl<T: WithDType> NdArray<T> {
     pub fn is_scaler(&self) -> bool {
         self.shape().is_scaler()
     }
 
-    pub fn to_scalar(&self) -> Result<Scalar> {
+    pub fn to_scalar(&self) -> Result<T> {
         if !self.is_scaler() {
             Err(Error::Msg("not a scalar".into()))
         } else {
@@ -48,7 +48,7 @@ impl NdArray {
     }
 }
 
-impl NdArray {
+impl<T: WithDType> NdArray<T> {
     pub fn id(&self) -> usize {
         self.0.id.0
     }
@@ -78,7 +78,7 @@ impl NdArray {
         self.layout().stride()
     }
 
-    pub fn storage(&self) -> std::sync::RwLockReadGuard<'_, Storage> {
+    pub fn storage(&self) -> std::sync::RwLockReadGuard<'_, Storage<T>> {
         self.0.storage.read().unwrap()
     }
 
@@ -95,6 +95,6 @@ impl NdArray {
     }
 
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
-        self.iter().zip(other.iter()).all(|(a, b)| a.allclose(&b, rtol, atol))
+        self.iter().zip(other.iter()).all(|(a, b)| a.close(b, rtol, atol))
     }
 }

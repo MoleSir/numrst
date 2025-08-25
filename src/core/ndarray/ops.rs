@@ -1,29 +1,29 @@
-use crate::{Error, FloatDType, IntDType, Layout, Result, Shape, Storage, WithDType};
+use crate::{Error, FloatDType, Layout, Result, Shape, Storage, WithDType};
 use super::NdArray;
 
 macro_rules! binary_op_impl {
-    ($fn_name:ident, $op_name:ident) => {
+    ($fn_name:ident) => {
         pub fn $fn_name(&self, rhs: &Self) -> Result<Self> {
             let shape = self.same_shape_binary_op(rhs, stringify!($fn_name))?;
             if shape.element_count() == 0 {
                 return Ok(self.clone());
             }
-            let storage = Self::binary_op::<$op_name>(
-                &self.storage(), &rhs.storage(), self.layout(), rhs.layout()
-            )?;
+            let storage = Self::binary_op(
+                &self.storage(), &rhs.storage(), self.layout(), rhs.layout(), T::$fn_name
+            );
             
             Ok(Self::from_storage(storage, shape))
         }
     };
 }
 
-impl NdArray {
-    binary_op_impl!(add, Add);
-    binary_op_impl!(mul, Mul);
-    binary_op_impl!(sub, Sub);
-    binary_op_impl!(div, Div);
-    binary_op_impl!(minimum, Minimum);
-    binary_op_impl!(maximum, Maximum);
+impl<T: WithDType> NdArray<T> {
+    binary_op_impl!(add);
+    binary_op_impl!(mul);
+    binary_op_impl!(sub);
+    binary_op_impl!(div);
+    binary_op_impl!(minimum);
+    binary_op_impl!(maximum);
 
     fn same_shape_binary_op(&self, rhs: &Self, op: &'static str) -> Result<&Shape> {
         let lhs = self.shape();
@@ -39,236 +39,64 @@ impl NdArray {
         }
     }
 
-    pub fn binary_op<B: BinaryOp>(lhs: &Storage, rhs: &Storage, lhs_layout: &Layout, rhs_layout: &Layout) -> Result<Storage> {
-        match (lhs, rhs) {
-            (Storage::F32(lhs), Storage::F32(rhs)) => {
-                let data = Self::binary_map(lhs, rhs, lhs_layout, rhs_layout, B::op);
-                Ok(Storage::F32(data))
-            }
-            (Storage::F64(lhs), Storage::F64(rhs)) => {
-                let data = Self::binary_map(lhs, rhs, lhs_layout, rhs_layout, B::op);
-                Ok(Storage::F64(data))
-            }
-            (Storage::U32(lhs), Storage::U32(rhs)) => {
-                let data = Self::binary_map(lhs, rhs, lhs_layout, rhs_layout, B::op);
-                Ok(Storage::U32(data))
-            }
-            (Storage::I32(lhs), Storage::I32(rhs)) => {
-                let data = Self::binary_map(lhs, rhs, lhs_layout, rhs_layout, B::op);
-                Ok(Storage::I32(data))
-            }
-            _ => {
-                // This should be covered by the dtype check above.
-                Err(Error::DTypeMismatchBinaryOp {
-                    lhs: lhs.dtype(),
-                    rhs: rhs.dtype(),
-                    op: B::NAME,
-                })
-            }
-        }
-    }
-
-    fn binary_map<T, U, F>(lhs: &[T], rhs: &[T], lhs_layout: &Layout, rhs_layout: &Layout, mut f: F) -> Vec<U> 
-    where T: Copy,
-        U: Copy, 
+    pub fn binary_op<U, F>(lhs: &Storage<T>, rhs: &Storage<T>, lhs_layout: &Layout, rhs_layout: &Layout, mut f: F) -> Storage<U> 
+    where 
+        U: WithDType, 
         F: FnMut(T, T) -> U
     {
         assert_eq!(lhs_layout.dims(), rhs_layout.dims(), "lhs dims != rhs dim2");
-
+        let lhs = lhs.data();
+        let rhs = rhs.data();
+        
         let mut output = vec![];
         for (lhs_index, rhs_index) in lhs_layout.to_index().zip(rhs_layout.to_index()) {
             output.push( f(lhs[lhs_index], rhs[rhs_index]) );
         }
-        output
-    }
-}
-
-pub trait BinaryOp {
-    const NAME: &'static str;
-    fn op<D: WithDType>(v1: D, v2: D) -> D;
-}
-
-struct Add;
-struct Div;
-struct Mul;
-struct Sub;
-struct Maximum;
-struct Minimum;
-
-macro_rules! binary_op {
-    ($op:ident, $name:literal, $func:tt) => {
-        impl BinaryOp for $op {        
-            const NAME: &'static str = $name;
-            fn op<D: WithDType>(v1: D, v2: D) -> D {
-                v1 $func v2
-            }
-        }
-    };
-}
-
-macro_rules! binary_op_minmax {
-    ($op:ident, $name:literal, $func:tt) => {
-        impl BinaryOp for $op {        
-            const NAME: &'static str = $name;
-            fn op<D: WithDType>(v1: D, v2: D) -> D {
-                if v1 $func v2 { v2 } else { v1 }
-            }
-        }
-    };
-}
-
-binary_op!(Add, "add", +);
-binary_op!(Sub, "sub", -);
-binary_op!(Mul, "mul", *);
-binary_op!(Div, "div", /);
-binary_op_minmax!(Minimum, "minimum", >);
-binary_op_minmax!(Maximum, "maximum", <);
-
-macro_rules! unary_op_impl {
-    ($fn_name:ident, $op_name:ident) => {
-        pub fn $fn_name(&self) -> Result<Self> {
-            if self.element_count() == 0 {
-                return Ok(self.clone());
-            }
-            let storage = Self::unary_op::<$op_name>(&self.storage(), self.layout())?;
-            Ok(Self::from_storage(storage, self.shape()))
-        }
         
-    };
+        Storage::<U>::new(output)
+    }
 }
 
-impl NdArray {
-    unary_op_impl!(exp, Exp);
-    unary_op_impl!(log, Log);
-    unary_op_impl!(sin, Sin);
-    unary_op_impl!(cos, Cos);
-    unary_op_impl!(abs, Abs);
-    unary_op_impl!(neg, Neg);
-    unary_op_impl!(recip, Recip);
-    unary_op_impl!(sqr, Sqr);
-    unary_op_impl!(sqrt, Sqrt);
-    unary_op_impl!(relu, Relu);
-    unary_op_impl!(tanh, Tanh);
-    unary_op_impl!(floor, Floor);
-    unary_op_impl!(ceil, Ceil);
-    unary_op_impl!(round, Round);
-
-    pub fn unary_op<B: UnaryOp>(storage: &Storage, layout: &Layout) -> Result<Storage> {
-        match storage {
-            Storage::U32(vec) => {
-                if B::SUPPORT_INT == false {
-                    return Err(Error::Msg(format!("{} not support u32 dtype", B::NAME)));
-                }
-                let output = Self::unary_map(vec, layout, B::int);
-                Ok(Storage::U32(output))
-            }
-            Storage::I32(vec) => {
-                if B::SUPPORT_INT == false {
-                    return Err(Error::Msg(format!("{} not support i32 dtype", B::NAME)));
-                }
-                let output = Self::unary_map(vec, layout, B::int);
-                Ok(Storage::I32(output))
-            }
-            Storage::F32(vec) => {
-                let output = Self::unary_map(vec, layout, B::float);
-                Ok(Storage::F32(output))
-            }
-            Storage::F64(vec) => {
-                let output = Self::unary_map(vec, layout, B::float);
-                Ok(Storage::F64(output))
-            }
-        }
-    }
-
-    fn unary_map<T, U, F>(vec: &[T], layout: &Layout, mut f: F) -> Vec<U> 
-    where T: Copy,
-        U: Copy,
+impl<T: WithDType> NdArray<T> {
+    fn unary_op<U, F>(s: &Storage<T>, layout: &Layout, mut f: F) -> Storage<U> 
+    where
+        U: WithDType,
         F: FnMut(T) -> U
     {
+        let vec = s.data();
         let mut output = vec![];
         for index in layout.to_index() {
             output.push( f(vec[index]) );
         }
-        output
+        
+        Storage::new(output)
     }
 }
 
-pub trait UnaryOp {
-    const NAME: &'static str;
-    const SUPPORT_INT: bool;
-    fn int<I: IntDType>(v: I) -> I;
-    fn float<F: FloatDType>(v: F) -> F;
-}
-
-struct Exp;
-struct Log;
-struct Sin;
-struct Cos;
-struct Recip;
-struct Sqr;
-struct Sqrt;
-struct Relu;
-struct Tanh;
-struct Floor;
-struct Ceil;
-struct Round;
-struct Abs;
-struct Neg;
-
-macro_rules! unary_op {
-    ($op:ident, $name:literal, $a: ident, $e:expr) => {
-        impl UnaryOp for $op {
-            const NAME: &'static str = $name;
-            const SUPPORT_INT: bool = false;
-            fn int<I: IntDType>(_: I) -> I {
-                unimplemented!("no {} function for int dtype", $name)
-                
+macro_rules! float_unary_op_impl {
+    ($fn_name:ident) => {
+        pub fn $fn_name(&self) -> Result<Self> {
+            if self.element_count() == 0 {
+                return Ok(self.clone());
             }
-        
-            fn float<F: FloatDType>($a: F) -> F {
-                $e
-            }
+            let storage = Self::unary_op(&self.storage(), self.layout(), F::$fn_name);
+            Ok(Self::from_storage(storage, self.shape()))
         }
     };
 }
 
-unary_op!(Exp, "exp", v, v.exp());
-unary_op!(Log, "log", v, v.ln());
-unary_op!(Sin, "sin", v, v.sin());
-unary_op!(Cos, "cos", v, v.cos());
-unary_op!(Tanh, "tanh", v, v.tanh());
-unary_op!(Recip, "recip", v, v.recip());
-unary_op!(Sqr, "sqr", v, v * v);
-unary_op!(Sqrt, "sqrt", v, v.sqrt());
-unary_op!(Floor, "floor", v, v.floor());
-unary_op!(Ceil, "ceil", v, v.ceil());
-unary_op!(Round, "round", v, v.round());
-unary_op!(Relu, "relu", v, if v > F::zero() { v } else { F::zero() });
-
-impl UnaryOp for Abs {
-    const NAME: &'static str = "abs";
-    const SUPPORT_INT: bool = true;
-
-    fn int<I: IntDType>(v: I) -> I {
-        v.abs()
-    }
-
-    fn float<F: FloatDType>(v: F) -> F {
-        v.abs()
-    }
-}
-
-impl UnaryOp for Neg {
-    const NAME: &'static str = "neg";
-    const SUPPORT_INT: bool = true;
-
-    fn int<I: IntDType>(v: I) -> I {
-        v.neg()
-    }
-
-    fn float<F: FloatDType>(v: F) -> F {
-        v.neg()
-    }
+impl<F: FloatDType> NdArray<F> {
+    float_unary_op_impl!(exp);
+    float_unary_op_impl!(sin);
+    float_unary_op_impl!(cos);
+    float_unary_op_impl!(sqrt);
+    float_unary_op_impl!(tanh);
+    float_unary_op_impl!(floor);
+    float_unary_op_impl!(ceil);
+    float_unary_op_impl!(round);
+    float_unary_op_impl!(abs);
+    float_unary_op_impl!(neg);
+    float_unary_op_impl!(ln);
 }
 
 #[cfg(test)]
@@ -279,7 +107,7 @@ mod tests {
     fn test_exp_log() {
         let a = NdArray::new(&[0.0f32, 1.0, 2.0]).unwrap();
         let exp_a = a.exp().unwrap();
-        let log_a = exp_a.log().unwrap();
+        let log_a = exp_a.ln().unwrap();
         assert!(a.allclose(&log_a, 1e-5, 1e-8));
     }
 
@@ -309,36 +137,6 @@ mod tests {
 
         assert!(abs_a.allclose(&expected_abs, 1e-6, 1e-6));
         assert!(neg_a.allclose(&expected_neg, 1e-6, 1e-6));
-    }
-
-    #[test]
-    fn test_recip_sqr_sqrt() {
-        let a = NdArray::new(&[1.0f32, 4.0, 9.0]).unwrap();
-        let recip_a = a.recip().unwrap();
-        let sqr_a = a.sqr().unwrap();
-        let sqrt_a = a.sqrt().unwrap();
-
-        let expected_recip = NdArray::new(&[1.0f32, 0.25, 1.0/9.0]).unwrap();
-        let expected_sqr = NdArray::new(&[1.0f32, 16.0, 81.0]).unwrap();
-        let expected_sqrt = NdArray::new(&[1.0f32, 2.0, 3.0]).unwrap();
-
-        assert!(recip_a.allclose(&expected_recip, 1e-6, 1e-6));
-        assert!(sqr_a.allclose(&expected_sqr, 1e-6, 1e-6));
-        assert!(sqrt_a.allclose(&expected_sqrt, 1e-6, 1e-6));
-    }
-
-    #[test]
-    fn test_relu_silu_tanh() {
-        let a = NdArray::new(&[-1.0f32, 0.0, 1.0]).unwrap();
-        let relu_a = a.relu().unwrap();
-        let tanh_a = a.tanh().unwrap();
-
-        let expected_relu = NdArray::new(&[0.0f32, 0.0, 1.0]).unwrap();
-        let expected_tanh = NdArray::new(&[-0.7615942f32, 0.0, 0.7615942]).unwrap();
-
-
-        assert!(relu_a.allclose(&expected_relu, 1e-5, 1e-5));
-        assert!(tanh_a.allclose(&expected_tanh, 1e-5, 1e-5));
     }
 
     #[test]

@@ -1,9 +1,9 @@
 use std::fmt::Display;
-use crate::Result;
+use crate::{Result, WithDType};
 
 use super::NdArray;
 
-impl NdArray {
+impl<T: WithDType> NdArray<T> {
     fn indexes(&self, indexers: &[Indexer]) -> Result<Self> {
         let mut x = self.clone();
         let mut current_dim = 0;
@@ -112,18 +112,18 @@ impl From<std::ops::RangeFull> for Indexer {
     }
 }
 
-pub trait IndexOp<T> {
-    fn index(&self, index: T) -> Result<NdArray>;
+pub trait IndexOp<T, D> {
+    fn index(&self, index: T) -> Result<NdArray<D>>;
 }
 
-impl<I: Into<Indexer>> IndexOp<I> for NdArray {
-    fn index(&self, index: I) -> Result<NdArray> {
+impl<I: Into<Indexer>, D: WithDType> IndexOp<I, D> for NdArray<D> {
+    fn index(&self, index: I) -> Result<NdArray<D>> {
         self.indexes(&[index.into()])
     }
 }
 
-impl<I: Into<Indexer>> IndexOp<(I,)> for NdArray {
-    fn index(&self, (index,): (I,)) -> Result<NdArray> {
+impl<I: Into<Indexer>, D: WithDType> IndexOp<(I,), D> for NdArray<D> {
+    fn index(&self, (index,): (I,)) -> Result<NdArray<D>> {
         self.indexes(&[index.into()])
     }
 }
@@ -131,11 +131,11 @@ impl<I: Into<Indexer>> IndexOp<(I,)> for NdArray {
 macro_rules! index_op_tuple {
     ($($t:ident),+) => {
         #[allow(non_snake_case)]
-        impl<$($t),*> IndexOp<($($t,)*)> for NdArray
+        impl<$($t),*, D: WithDType> IndexOp<($($t,)*), D> for NdArray<D>
         where
             $($t: Into<Indexer>,)*
         {
-            fn index(&self, ($($t,)*): ($($t,)*)) -> Result<NdArray> {
+            fn index(&self, ($($t,)*): ($($t,)*)) -> Result<NdArray<D>> {
                 self.indexes(&[$($t.into(),)*])
             }
         }
@@ -213,7 +213,7 @@ mod test {
 
     #[test]
     fn test_index_full_and_mixed() {
-        let arr = NdArray::zeros((5, 5, 5), DType::U32).unwrap();
+        let arr = NdArray::<i32>::zeros((5, 5, 5)).unwrap();
 
         let sub = arr.index((rng!(1:3), .., 1..2)).unwrap();
         assert_eq!(sub.shape().dims(), &[2, 5, 1]);
@@ -227,7 +227,7 @@ mod test {
 
     #[test]
     fn test_index_out_of_bounds() {
-        let arr = NdArray::zeros((5, 5, 5), DType::U32).unwrap();
+        let arr = NdArray::<i32>::zeros((5, 5, 5)).unwrap();
         let result = arr.index(10);
         assert!(result.is_err());
 

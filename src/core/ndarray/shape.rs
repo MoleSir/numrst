@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use crate::{Dim, Error, Layout, Result, Shape};
+use crate::{Dim, Error, Layout, Result, Shape, WithDType};
 
 use super::{NdArray, NdArrayId, NdArrayImpl, Range};
 
-impl NdArray {
+impl<T: WithDType> NdArray<T> {
     /// Creates a new tensor with the specified dimension removed if its size was one.
     ///
     /// ```rust
     /// use numrs::{NdArray, DType, D};
-    /// let a = NdArray::zeros((2, 3, 1), DType::F32).unwrap();
+    /// let a = NdArray::<f32>::zeros((2, 3, 1)).unwrap();
     ///
     /// let c = a.squeeze(2).unwrap();
     /// assert_eq!(c.shape().dims(), &[2, 3]);
@@ -38,7 +38,7 @@ impl NdArray {
     ///
     /// ```rust
     /// use numrs::{NdArray, DType, D};
-    /// let a = NdArray::zeros((2, 3), DType::F32).unwrap();
+    /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
     ///
     /// let c = a.unsqueeze(0).unwrap();
     /// assert_eq!(c.shape().dims(), &[1, 2, 3]);
@@ -115,7 +115,7 @@ impl NdArray {
     /// ranges from `start` to `start : end : step`.
     /// ```
     /// use numrs::{NdArray, DType, rng, Range};
-    /// let a = NdArray::zeros((5, 5, 5), DType::U32).unwrap();
+    /// let a = NdArray::<i32>::zeros((5, 5, 5)).unwrap();
     ///
     /// let b = a.narrow(0, 1, 2).unwrap();
     /// assert_eq!(b.shape().dims(), &[2, 5, 5]);
@@ -170,7 +170,7 @@ impl NdArray {
     /// 
     /// ```rust
     /// use numrs::{NdArray, DType, D};
-    /// let a = NdArray::zeros((2, 3), DType::F32).unwrap();
+    /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
     ///
     /// let c = a.reshape((1, 6)).unwrap();
     /// assert_eq!(c.shape().dims(), &[1, 6]);
@@ -200,7 +200,7 @@ impl NdArray {
     }
     
     /// Returns a ndarray that is a transposed version of the input, the given dimensions are
-    pub fn transpose<D1: Dim, D2: Dim>(&self, dim1: D1, dim2: D2) -> Result<NdArray> {
+    pub fn transpose<D1: Dim, D2: Dim>(&self, dim1: D1, dim2: D2) -> Result<Self> {
         let dim1 = dim1.to_index(self.shape(), "transpose")?;
         let dim2 = dim2.to_index(self.shape(), "transpose")?;
         if dim1 == dim2 {
@@ -213,13 +213,5 @@ impl NdArray {
             dtype: self.dtype(),
         };
         Ok(NdArray(Arc::new(tensor_)))
-    }
-
-    pub fn cat<A: AsRef<NdArray>, D: Dim>(_args: &[A], _dim: D) -> Result<Self> {
-        todo!();
-    }
-
-    pub fn stack<A: AsRef<NdArray>, D: Dim>(_args: &[A], _dim: D) -> Result<Self> {
-        todo!()
     }
 }
