@@ -103,15 +103,6 @@ impl Layout {
         }
         
         let len = (start..end).step_by(step).len();
-        if len == 0 {
-            Err(Error::NarrowInvalidArgs {
-                shape: self.shape.clone(),
-                dim,
-                start,
-                len,
-                msg: "len == 0",
-            })?
-        }
         if end > dims[dim] {
             Err(Error::NarrowInvalidArgs {
                 shape: self.shape.clone(),

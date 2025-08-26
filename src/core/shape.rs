@@ -108,65 +108,6 @@ impl Shape {
         stride.reverse();
         stride
     }
-
-    pub fn dims0(&self) -> Result<()> {
-        Shape::check_rank::<0>(self.dims())?;
-        Ok(())
-    } 
-
-    pub fn dims1(&self) -> Result<(usize,)> {
-        Shape::check_rank::<1>(self.dims())?;
-        Ok((self.dims()[0],))
-    } 
-
-    pub fn dims2(&self) -> Result<(usize, usize)> {
-        Shape::check_rank::<2>(self.dims())?;
-        Ok((
-            self.dims()[0],
-            self.dims()[1],
-        ))
-    } 
-
-    pub fn dims3(&self) -> Result<(usize, usize, usize)> {
-        Shape::check_rank::<3>(self.dims())?;
-        Ok((
-            self.dims()[0],
-            self.dims()[1],
-            self.dims()[2],
-        ))
-    }
-    
-    pub fn dims4(&self) -> Result<(usize, usize, usize, usize)> {
-        Shape::check_rank::<4>(self.dims())?;
-        Ok((
-            self.dims()[0],
-            self.dims()[1],
-            self.dims()[2],
-            self.dims()[3],
-        ))
-    }
-    
-    pub fn dims5(&self) -> Result<(usize, usize, usize, usize, usize)> {
-        Shape::check_rank::<5>(self.dims())?;
-        Ok((
-            self.dims()[0],
-            self.dims()[1],
-            self.dims()[2],
-            self.dims()[3],
-            self.dims()[4],
-        ))
-    }
-
-    fn check_rank<const C: usize, >(dims: &[usize]) -> Result<()> {
-        if dims.len() != C {
-            return Err(Error::UnexpectedNumberOfDims {
-                expected: C,
-                got: dims.len(),
-                shape: Shape::from(dims),
-            });
-        }
-        Ok(())
-    }
 }
 
 impl<const C: usize> From<&[usize; C]> for Shape {
@@ -261,6 +202,65 @@ impl D {
         }
     }
 }
+
+
+macro_rules! extract_dims {
+    ($fn_name:ident, $cnt:tt, $dims:expr, $out_type:ty) => {
+        pub fn $fn_name(dims: &[usize]) -> Result<$out_type> {
+            if dims.len() != $cnt {
+                Err(Error::UnexpectedNumberOfDims {
+                    expected: $cnt,
+                    got: dims.len(),
+                    shape: Shape::from(dims),
+                })
+            } else {
+                Ok($dims(dims))
+            }
+        }
+
+        impl Shape {
+            pub fn $fn_name(&self) -> Result<$out_type> {
+                $fn_name(self.0.as_slice())
+            }
+        }
+
+        impl<T: crate::WithDType> crate::NdArray<T> {
+            pub fn $fn_name(&self) -> Result<$out_type> {
+                self.shape().$fn_name()
+            }
+        }
+
+        impl std::convert::TryInto<$out_type> for Shape {
+            type Error = crate::Error;
+            fn try_into(self) -> std::result::Result<$out_type, Self::Error> {
+                self.$fn_name()
+            }
+        }
+    };
+}
+
+extract_dims!(dims0, 0, |_: &[usize]| (), ());
+extract_dims!(dims1, 1, |d: &[usize]| d[0], usize);
+extract_dims!(dims2, 2, |d: &[usize]| (d[0], d[1]), (usize, usize));
+extract_dims!(
+    dims3,
+    3,
+    |d: &[usize]| (d[0], d[1], d[2]),
+    (usize, usize, usize)
+);
+extract_dims!(
+    dims4,
+    4,
+    |d: &[usize]| (d[0], d[1], d[2], d[3]),
+    (usize, usize, usize, usize)
+);
+extract_dims!(
+    dims5,
+    5,
+    |d: &[usize]| (d[0], d[1], d[2], d[3], d[4]),
+    (usize, usize, usize, usize, usize)
+);
+
 
 pub trait Dim {
     fn to_index(&self, shape: &Shape, op: &'static str) -> Result<usize>;

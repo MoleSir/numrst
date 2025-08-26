@@ -1,6 +1,5 @@
 use std::fmt::Display;
 use crate::{Result, WithDType};
-
 use super::NdArray;
 
 impl<T: WithDType> NdArray<T> {
@@ -18,6 +17,20 @@ impl<T: WithDType> NdArray<T> {
             };
         }
         Ok(x)
+    }
+}
+
+impl<T: WithDType> NdArray<T> {
+    pub fn matrix_get(&self, row: usize, col: usize) -> Result<T> {
+        self.index((row, col))?.to_scalar()
+    }
+
+    pub fn matrix_set(&self, row: usize, col: usize, val: T) -> Result<()> {
+        self.index((row, col))?.set_scalar(val)
+    }
+
+    pub fn vector_get(&self, n: usize) -> Result<T> {
+        self.index(n)?.to_scalar()
     }
 }
 

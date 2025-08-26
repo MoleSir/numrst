@@ -1,3 +1,6 @@
 mod basic;
-mod svd;
+mod decomposition;
+mod solve;
+
 pub use basic::*;
+pub use decomposition::*;

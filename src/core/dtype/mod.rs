@@ -69,6 +69,8 @@ pub trait NumDType :
   + num_traits::Num    
   + std::iter::Sum
   + std::iter::Product
+  + std::ops::AddAssign
+
 {
     fn min_value() -> Self;
     fn max_value() -> Self;

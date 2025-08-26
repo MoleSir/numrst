@@ -3,6 +3,7 @@ mod layout;
 mod dtype;
 mod storage;
 mod ndarray;
+pub mod view;
 
 pub use shape::*;
 pub use layout::*;

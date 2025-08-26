@@ -12,7 +12,7 @@ NumRst is the fundamental package for scientific computing with Rust.
 - [x] index op like numpy
 - [x] reduce op 
 - [x] simple display 
-
+- [x] `Matrix` and `Vector` view
 
 
 ## Examples

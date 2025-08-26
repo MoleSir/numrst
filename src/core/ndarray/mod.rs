@@ -11,7 +11,7 @@ mod broadcast;
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{DType, Dim, Layout, NumDType, Shape, Storage, WithDType};
+use super::{view::{Matrix, Vector}, DType, Dim, Layout, NumDType, Shape, Storage, WithDType};
 
 #[derive(Clone)]
 pub struct NdArray<D>(Arc<NdArrayImpl<D>>);
@@ -43,7 +43,23 @@ impl<T: WithDType> NdArray<T> {
         if !self.is_scaler() {
             Err(Error::Msg("not a scalar".into()))
         } else {
-            Ok(self.iter().next().unwrap())
+            let storage = self.0.storage.read().unwrap();
+            let data = storage.data();
+            let index = self.layout().start_offset();
+            let scalar = data[index];
+            Ok(scalar)
+        }
+    }
+
+    pub fn set_scalar(&self, val: T) -> Result<()> {
+        if !self.is_scaler() {
+            Err(Error::Msg("not a scalar".into()))
+        } else {
+            let mut storage = self.0.storage.write().unwrap();
+            let data = storage.data_mut();
+            let index = self.layout().start_offset();
+            data[index] = val;
+            Ok(())
         }
     }
 }
@@ -74,10 +90,6 @@ impl<T: WithDType> NdArray<T> {
         Ok(self.dims()[dim])
     }
 
-    pub fn stride(&self) -> &[usize] {
-        self.layout().stride()
-    }
-
     pub fn storage(&self) -> std::sync::RwLockReadGuard<'_, Storage<T>> {
         self.0.storage.read().unwrap()
     }
@@ -97,9 +109,25 @@ impl<T: WithDType> NdArray<T> {
     pub fn to_vec(&self) -> Vec<T> {
         self.iter().collect()
     }
+
+    pub(crate) fn storage_clone(&self) -> Arc<RwLock<Storage<T>>> {
+        self.0.storage.clone()
+    }
 }
 
 impl<T: NumDType> NdArray<T> {
+    pub fn matrix_view(&self) -> Result<Matrix<T>> {
+        Matrix::<T>::from_ndarray(self)
+    }
+
+    pub fn vector_view(&self) -> Result<Vector<T>> {
+        Vector::<T>::from_ndarray(self)
+    }
+
+    pub fn vector_view_axis<D: Dim>(&self, axis: D) -> Result<Vector<T>> {
+        Vector::<T>::from_ndarray_axis(self, axis)
+    }
+
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
         if self.shape() != other.shape() {
             return false;

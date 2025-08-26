@@ -80,3 +80,4 @@ impl<T: WithDType> Storage<T> {
         Ok(Self(output))
     }
 }
+

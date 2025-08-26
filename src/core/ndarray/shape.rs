@@ -19,7 +19,7 @@ impl<T: WithDType> NdArray<T> {
         let dim = dim.to_index(self.shape(), "squeeze")?;
         if dims[dim] == 1 {
             let mut dims = dims.to_vec();
-            let mut strides = self.stride().to_vec();
+            let mut strides = self.layout().stride().to_vec();
             dims.remove(dim);
             strides.remove(dim);
             let ndarray_ = NdArrayImpl {
@@ -48,7 +48,7 @@ impl<T: WithDType> NdArray<T> {
     /// ```
     pub fn unsqueeze<D: Dim>(&self, dim: D) -> Result<Self> {
         let mut dims = self.dims().to_vec();
-        let mut strides = self.stride().to_vec();
+        let mut strides = self.layout().stride().to_vec();
         let dim = dim.to_index_plus_one(self.shape(), "unsqueeze")?;
         dims.insert(dim, 1);
         let stride = if dim < strides.len() { strides[dim] } else { 1 };
