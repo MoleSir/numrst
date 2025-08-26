@@ -1,6 +1,6 @@
 use crate::{Result, Storage};
 
-use super::{DType, IntDType, NumDType, WithDType};
+use super::{DType, IntCategory, IntDType, NumDType, WithDType};
 
 impl WithDType for u32 {
     const DTYPE: DType = DType::U32;
@@ -11,6 +11,8 @@ impl WithDType for u32 {
 }
 
 impl NumDType for u32 {
+    type Category = IntCategory;
+
     fn min_value() -> Self {
         u32::MIN
     }

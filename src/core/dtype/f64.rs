@@ -2,7 +2,7 @@ use approx::relative_eq;
 
 use crate::{Result, Storage};
 
-use super::{DType, FloatDType, NumDType, WithDType};
+use super::{DType, FloatCategory, FloatDType, NumDType, WithDType};
 
 impl WithDType for f64 {
     const DTYPE: DType = DType::F64;
@@ -13,6 +13,8 @@ impl WithDType for f64 {
 }
 
 impl NumDType for f64 {
+    type Category = FloatCategory;
+
     fn min_value() -> Self {
         <f64>::MIN
     }

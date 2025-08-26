@@ -72,6 +72,8 @@ pub trait NumDType :
   + std::ops::AddAssign
 
 {
+    type Category: NumCategory;
+
     fn min_value() -> Self;
     fn max_value() -> Self;
 
@@ -99,14 +101,20 @@ pub trait IntDType:
 }
 
 pub trait FloatDType: 
-    NumDType
+    NumDType<Category = FloatCategory>
     + num_traits::Float
 {
 }
 
 pub trait BoolDType:
-    NumDType
+    NumDType<Category = IntCategory>
 {
 
 }
 
+pub trait NumCategory {}
+pub struct IntCategory {}
+pub struct FloatCategory {}
+
+impl NumCategory for IntCategory {}
+impl NumCategory for FloatCategory {}

@@ -1,10 +1,19 @@
-use num_traits::Pow;
-use crate::{Dim, Layout, NumDType, Result, Storage, WithDType};
+use crate::{Dim, FloatCategory, FloatDType, IntCategory, IntDType, Layout, NumCategory, NumDType, Result, Storage, WithDType};
 use super::NdArray;
 
 macro_rules! reduce_impl {
     ($fn_name:ident, $reduce:ident) => {
         pub fn $fn_name<D: Dim>(&self, axis: D) -> Result<NdArray<<$reduce as ReduceOp<T>>::Output>> {
+            self.reduec_op(axis, $reduce::op, stringify!($fn_name))
+        }
+    };
+}
+
+macro_rules! reduce_category_impl {
+    ($fn_name:ident, $reduce:ident) => {
+        pub fn $fn_name<D: Dim>(&self, axis: D) -> Result<NdArray<<$reduce as ReduceOp<T>>::Output>> 
+        where $reduce: ReduceOpByCategory<T>
+        {
             self.reduec_op(axis, $reduce::op, stringify!($fn_name))
         }
     };
@@ -17,6 +26,8 @@ impl<T: NumDType> NdArray<T> {
     reduce_impl!(argmin_axis, ReduceArgMin);
     reduce_impl!(max_axis, ReduceMax);
     reduce_impl!(argmax_axis, ReduceArgMax);
+    reduce_category_impl!(mean, ReduceMean);
+    reduce_category_impl!(var, ReduceVar);
 }
 
 impl<T: NumDType> NdArray<T> {
@@ -34,106 +45,6 @@ impl<T: NumDType> NdArray<T> {
 
     pub fn max(&self) -> T {
         self.iter().reduce(|acc, e| T::maximum(acc, e)).unwrap()
-    }
-}
-
-impl NdArray<i32> {
-    fn mean_f(arr: DimArray<'_, i32>) -> f64 {
-        let sum = ReduceSum::op(arr.clone());
-        let len = arr.into_iter().count();
-        sum as f64 / len as f64
-    }
-
-    fn var_f(arr: DimArray<'_, i32>) -> f64 {
-        let mean = Self::mean_f(arr.clone());
-        let len = arr.len();
-        let sum = arr.into_iter()
-            .map(|v| (v as f64 - mean).pow(2) )
-            .sum::<f64>();
-        sum / len as f64
-    }
-
-    pub fn mean<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::mean_f, "mean")
-    }
-
-    pub fn var<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::var_f, "var")
-    }
-}
-
-impl NdArray<u32> {
-    fn mean_f(arr: DimArray<'_, u32>) -> f64 {
-        let sum = ReduceSum::op(arr.clone());
-        let len = arr.into_iter().count();
-        sum as f64 / len as f64
-    }
-
-    fn var_f(arr: DimArray<'_, u32>) -> f64 {
-        let mean = Self::mean_f(arr.clone());
-        let len = arr.len();
-        let sum = arr.into_iter()
-            .map(|v| (v as f64 - mean).pow(2) )
-            .sum::<f64>();
-        sum / len as f64
-    }
-
-    pub fn mean<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::mean_f, "mean")
-    }
-
-    pub fn var<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::var_f, "var")
-    }
-}
-
-impl NdArray<f32> {
-    fn mean_f(arr: DimArray<'_, f32>) -> f32 {
-        let sum = ReduceSum::op(arr.clone());
-        let len = arr.into_iter().count();
-        sum / len as f32
-    }
-
-    fn var_f(arr: DimArray<'_, f32>) -> f32 {
-        let mean = Self::mean_f(arr.clone());
-        let len = arr.len();
-        let sum = arr.into_iter()
-            .map(|v| (v - mean).pow(2) )
-            .sum::<f32>();
-        sum / len as f32
-    }
-
-    pub fn mean<D: Dim>(&self, dim: D) -> Result<NdArray<f32>> {
-        self.reduec_op(dim, Self::mean_f, "mean")
-    }
-
-    pub fn var<D: Dim>(&self, dim: D) -> Result<NdArray<f32>> {
-        self.reduec_op(dim, Self::var_f, "var")
-    }
-}
-
-impl NdArray<f64> {
-    fn mean_f(arr: DimArray<'_, f64>) -> f64 {
-        let sum = ReduceSum::op(arr.clone());
-        let len = arr.into_iter().count();
-        sum / len as f64
-    }
-
-    fn var_f(arr: DimArray<'_, f64>) -> f64 {
-        let mean = Self::mean_f(arr.clone());
-        let len = arr.len();
-        let sum = arr.into_iter()
-            .map(|v| (v - mean).pow(2) )
-            .sum::<f64>();
-        sum / len as f64
-    }
-
-    pub fn mean<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::mean_f, "mean")
-    }
-
-    pub fn var<D: Dim>(&self, dim: D) -> Result<NdArray<f64>> {
-        self.reduec_op(dim, Self::var_f, "var")
     }
 }
 
@@ -201,6 +112,79 @@ pub trait ReduceOp<D: WithDType> {
     type Output: WithDType;
     fn op(arr: DimArray<'_, D>) -> Self::Output;
 }
+
+/// Mean and Var are special reduce op
+/// For float type, we need it return self
+/// But for int type, it should be return bool, but you can't impl both NumDType and FloatDType for ReduceOp
+/// Rust think maybe there are some type impl NumDType and FloatDType
+/// So we use ReduceOpByCategory to solve this question
+/// check https://geo-ant.github.io/blog/2021/mutually-exclusive-traits-rust/ for more detial :)
+pub trait ReduceOpByCategory<T: NumDType, C: NumCategory = <T as NumDType>::Category> {
+    type Output: NumDType;
+    fn category_op(arr: DimArray<'_, T>) -> Self::Output;
+}
+
+pub struct ReduceMean;
+
+impl<F: FloatDType> ReduceOpByCategory<F, FloatCategory> for ReduceMean {
+    type Output = F;
+    fn category_op(arr: DimArray<'_, F>) -> Self::Output {
+        let sum = ReduceSum::op(arr.clone());
+        sum / F::from_usize(arr.len())
+    }
+}
+
+impl<I: IntDType> ReduceOpByCategory<I, IntCategory> for ReduceMean {
+    type Output = f64;
+    fn category_op(arr: DimArray<'_, I>) -> Self::Output {
+        let sum = ReduceSum::op(arr.clone());
+        sum.to_f64() / arr.len() as f64
+    }
+}
+
+impl<D: NumDType> ReduceOp<D> for ReduceMean 
+where
+    Self: ReduceOpByCategory<D>
+{
+    type Output = <ReduceMean as ReduceOpByCategory<D>>::Output;
+    fn op(arr: DimArray<'_, D>) -> Self::Output {
+        ReduceMean::category_op(arr)
+    }
+} 
+
+pub struct ReduceVar;
+
+impl<F: FloatDType> ReduceOpByCategory<F, FloatCategory> for ReduceVar {
+    type Output = F;
+    fn category_op(arr: DimArray<'_, F>) -> Self::Output {
+        let mean = ReduceMean::op(arr.clone());
+        let sum = arr.clone().into_iter()   
+            .map(|v| (v - mean).powi(2))
+            .sum::<F>();
+        sum / F::from_usize(arr.len())
+    }
+}
+
+impl<I: IntDType> ReduceOpByCategory<I, IntCategory> for ReduceVar {
+    type Output = f64;
+    fn category_op(arr: DimArray<'_, I>) -> Self::Output {
+        let mean: f64 = ReduceMean::category_op(arr.clone()); 
+        let sum = arr.clone().into_iter()   
+            .map(|v| (v.to_f64()- mean))
+            .sum::<f64>();
+        sum.to_f64() / arr.len() as f64
+    }
+}
+
+impl<D: NumDType> ReduceOp<D> for ReduceVar 
+where
+    Self: ReduceOpByCategory<D>
+{
+    type Output = <ReduceVar as ReduceOpByCategory<D>>::Output;
+    fn op(arr: DimArray<'_, D>) -> Self::Output {
+        ReduceVar::category_op(arr)
+    }
+} 
 
 pub struct ReduceAll;
 impl ReduceOp<bool> for ReduceAll {
