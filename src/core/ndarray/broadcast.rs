@@ -15,7 +15,6 @@ impl<T: WithDType> NdArray<T> {
             id: NdArrayId::new(),
             storage: self.0.storage.clone(),
             layout: self.layout().broadcast_as(shape)?,
-            dtype: self.dtype(),
         };
         Ok(NdArray(Arc::new(ndarry_)))
     }

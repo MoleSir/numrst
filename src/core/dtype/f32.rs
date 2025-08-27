@@ -2,7 +2,7 @@ use approx::relative_eq;
 
 use crate::{Result, Storage};
 
-use super::{DType, FloatCategory, FloatDType, NumDType, WithDType};
+use super::{DType, DTypeConvert, FloatCategory, FloatDType, NumDType, WithDType};
 
 impl WithDType for f32 {
     const DTYPE: DType = DType::F32;
@@ -50,5 +50,12 @@ impl NumDType for f32 {
     }
 }
 
-impl FloatDType for f32 {
-}
+impl FloatDType for f32 {}
+
+impl DTypeConvert<i32> for f32 { fn convert(self) -> i32 { self as i32 } }
+impl DTypeConvert<u32> for f32 { fn convert(self) -> u32 { self as u32 } }
+impl DTypeConvert<usize> for f32 { fn convert(self) -> usize { self as usize } }
+impl DTypeConvert<f32> for f32 { fn convert(self) -> f32 { self } }
+impl DTypeConvert<f64> for f32 { fn convert(self) -> f64 { self as f64 } }
+impl DTypeConvert<bool> for f32 { fn convert(self) -> bool { self != 0.0 } }
+

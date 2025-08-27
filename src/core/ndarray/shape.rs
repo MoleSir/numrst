@@ -26,7 +26,6 @@ impl<T: WithDType> NdArray<T> {
                 id: NdArrayId::new(),
                 storage: self.0.storage.clone(),
                 layout: Layout::new(dims, strides, self.layout().start_offset()),
-                dtype: self.dtype(),
             };
             Ok(Self(Arc::new(ndarray_)))
         } else {
@@ -57,7 +56,6 @@ impl<T: WithDType> NdArray<T> {
             id: NdArrayId::new(),
             storage: self.0.storage.clone(),
             layout: Layout::new(dims, strides, self.layout().start_offset()),
-            dtype: self.dtype(),
         };
         Ok(Self(Arc::new(ndarray_)))
     }
@@ -105,7 +103,6 @@ impl<T: WithDType> NdArray<T> {
                 id: NdArrayId::new(),
                 storage: self.0.storage.clone(),
                 layout,
-                dtype: self.dtype(),
             };
             Ok(Self(Arc::new(ndarray_)))
         }
@@ -153,7 +150,6 @@ impl<T: WithDType> NdArray<T> {
                 id: NdArrayId::new(),
                 storage: self.0.storage.clone(),
                 layout,
-                dtype: self.dtype(),
             };
             Ok(Self(Arc::new(ndarray_)))
         }
@@ -190,11 +186,10 @@ impl<T: WithDType> NdArray<T> {
                 id: NdArrayId::new(),
                 storage: self.0.storage.clone(),
                 layout: Layout::contiguous_with_offset(shape, self.layout().start_offset()),
-                dtype: self.dtype(),
             };
             Ok(NdArray(Arc::new(ndarray_)))
         } else {
-            let storage = self.storage().copy(self.layout())?;
+            let storage = self.storage().copy(self.layout());
             Ok(Self::from_storage(storage, shape))
         }
     }
@@ -210,7 +205,6 @@ impl<T: WithDType> NdArray<T> {
             id: NdArrayId::new(),
             storage: self.0.storage.clone(),
             layout: self.layout().transpose(dim1, dim2)?,
-            dtype: self.dtype(),
         };
         Ok(NdArray(Arc::new(tensor_)))
     }

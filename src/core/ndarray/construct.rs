@@ -37,12 +37,10 @@ impl<T: WithDType> NdArray<T> {
     /// Typically used internally, but can also be used when you already
     /// have a `Storage<T>` prepared.
     pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage<T>, shape: S) -> Self {
-        let dtype = storage.dtype();
         let ndarray_ = NdArrayImpl {
             id: NdArrayId::new(),
             storage: Arc::new(RwLock::new(storage)),
             layout: Layout::contiguous(shape),
-            dtype
         };
         NdArray(Arc::new(ndarray_))
     }

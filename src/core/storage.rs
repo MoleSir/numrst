@@ -73,12 +73,22 @@ impl<T: WithDType> Storage<T> {
         self.0.len()
     }
 
-    pub fn copy(&self, layout: &Layout) -> Result<Self> {
-        let mut output = vec![];
-        for index in layout.to_index() {
-            output.push( self.0[index] );
-        }
-        Ok(Self(output))
+    pub fn copy(&self, layout: &Layout) -> Self {
+        let output: Vec<_> = layout.to_index()
+            .map(|i| self.0[i])
+            .collect();
+        Self(output)
+    }
+
+    pub fn copy_map<F, U>(&self, layout: &Layout, f: F) -> Storage<U> 
+    where 
+        U: WithDType,
+        F: Fn(T) -> U
+    {
+        let output: Vec<_> = layout.to_index()
+            .map(|i| f(self.0[i]))
+            .collect();
+        Storage(output)
     }
 }
 

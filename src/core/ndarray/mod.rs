@@ -7,6 +7,7 @@ mod arith;
 mod matmul;
 mod reduce;
 mod broadcast;
+mod convert;
 
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
@@ -32,7 +33,6 @@ pub struct NdArrayImpl<T> {
     id: NdArrayId,
     storage: Arc<RwLock<Storage<T>>>,
     layout: Layout,
-    dtype: DType,
 }
 
 impl<T: WithDType> NdArray<T> {
@@ -75,7 +75,7 @@ impl<T: WithDType> NdArray<T> {
     }
 
     pub fn dtype(&self) -> DType {
-        self.0.dtype
+        T::DTYPE
     }
 
     pub fn layout(&self) -> &Layout {

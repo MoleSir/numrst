@@ -121,3 +121,9 @@ pub struct FloatCategory {}
 
 impl NumCategory for IntCategory {}
 impl NumCategory for FloatCategory {}
+
+pub trait DTypeConvert<To: WithDType>: WithDType {
+    fn convert(self) -> To;
+}
+
+
