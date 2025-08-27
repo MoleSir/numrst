@@ -1,6 +1,7 @@
 mod f32;
 mod f64;
 mod u32;
+mod usize;
 mod i32;
 mod bool;
 use crate::Result;
@@ -8,11 +9,12 @@ use super::Storage;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DType {
-    Bool, // boolean
-    I32,  // signed 32-bit
-    U32,  // unsigned 32-bit
-    F32,  // 32-bit float
-    F64,  // 64-bit float
+    Bool,  // boolean
+    I32,   // signed 32-bit
+    U32,   // unsigned 32-bit
+    USIZE, // unsigned size
+    F32,   // 32-bit float
+    F64,   // 64-bit float
 }
 
 impl DType {
@@ -21,6 +23,7 @@ impl DType {
             DType::Bool => std::mem::size_of::<bool>(),
             DType::I32 => std::mem::size_of::<i32>(),
             DType::U32 => std::mem::size_of::<u32>(),
+            DType::USIZE => std::mem::size_of::<usize>(),
             DType::F32 => std::mem::size_of::<f32>(),
             DType::F64 => std::mem::size_of::<f64>(),
         }
@@ -41,6 +44,7 @@ impl std::fmt::Display for DType {
             Self::Bool => write!(f, "boolean"),
             Self::I32 => write!(f, "32-bit signed"),
             Self::U32 => write!(f, "32-bit unsigned"),
+            Self::USIZE => write!(f, "unsigned size"),
             Self::F32 => write!(f, "32-bit float"),
             Self::F64 => write!(f, "64-bit float"),
         }
@@ -58,24 +62,17 @@ pub trait WithDType:
     + Sync
 {
     const DTYPE: DType;
-    fn dtype() -> DType;
-    
-    // fn to_storage(data: Vec<Self>) -> Result<Storage<Self>>;
-    // fn to_filled_storage(self, len: usize) -> Result<Storage<Self>>;
 }
 
 pub trait NumDType : 
     WithDType 
   + num_traits::Num    
+  + num_traits::Bounded
   + std::iter::Sum
   + std::iter::Product
   + std::ops::AddAssign
-
 {
     type Category: NumCategory;
-
-    fn min_value() -> Self;
-    fn max_value() -> Self;
 
     fn from_f64(v: f64) -> Self;
     fn to_f64(self) -> f64;
@@ -90,26 +87,32 @@ pub trait NumDType :
 }
 
 pub trait IntDType: 
-    NumDType
+    NumDType<Category = IntCategory>
     + num_traits::Bounded 
 {
     fn is_true(self) -> bool {
         self != Self::zero()
     }
+}
+
+pub trait SignedIntDType : 
+    IntDType 
+  + num_traits::Signed 
+{
     fn abs(self) -> Self;
     fn neg(self) -> Self;
+}
+
+pub trait UnsignedIntDType : 
+    IntDType 
+  + num_traits::Unsigned 
+{
 }
 
 pub trait FloatDType: 
     NumDType<Category = FloatCategory>
     + num_traits::Float
 {
-}
-
-pub trait BoolDType:
-    NumDType<Category = IntCategory>
-{
-
 }
 
 pub trait NumCategory {}

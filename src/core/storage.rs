@@ -62,7 +62,7 @@ impl<T: WithDType> Storage<T> {
     }
 
     pub fn dtype(&self) -> DType {
-        T::dtype()
+        T::DTYPE
     }
 
     pub fn get(&self, index: usize) -> Option<T> {

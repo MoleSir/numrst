@@ -1,6 +1,10 @@
 use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, WithDType};
 use super::NdArray;
 
+//////////////////////////////////////////////////////////////////////////////
+///        Binary Op with NdArray and NdArray 
+//////////////////////////////////////////////////////////////////////////////
+
 macro_rules! binary_op_impl {
     ($fn_name:ident) => {
         pub fn $fn_name(&self, rhs: &Self) -> Result<Self> {
@@ -48,14 +52,75 @@ impl<T: NumDType> NdArray<T> {
         let lhs = lhs.data();
         let rhs = rhs.data();
         
-        let mut output = vec![];
-        for (lhs_index, rhs_index) in lhs_layout.to_index().zip(rhs_layout.to_index()) {
-            output.push( f(lhs[lhs_index], rhs[rhs_index]) );
-        }
+        let output: Vec<_> = lhs_layout.to_index().zip(rhs_layout.to_index())
+            .map(|(lhs_index, rhs_index)| f(lhs[lhs_index], rhs[rhs_index]))
+            .collect();
         
         Storage::<U>::new(output)
     }
 }
+
+//////////////////////////////////////////////////////////////////////////////
+///        Binary Op with NdArray and scalar 
+//////////////////////////////////////////////////////////////////////////////
+
+macro_rules! binary_scalar_op_impl {
+    ($fn_name:ident, $op:ident) => {
+        pub fn $fn_name(&self, add: T) -> Self {
+            if self.shape().element_count() == 0 {
+                return self.clone();
+            }
+            let storage = Self::binary_scalar_op(
+                &self.storage(), self.layout(), add, T::$op 
+            );
+            Self::from_storage(storage, self.shape())
+        }
+    };
+}
+
+impl<T: NumDType> NdArray<T> {
+    binary_scalar_op_impl!(add_scaler, add);
+    binary_scalar_op_impl!(sub_scaler, sub);
+    binary_scalar_op_impl!(mul_scaler, mul);
+    binary_scalar_op_impl!(div_scaler, div);
+    binary_scalar_op_impl!(minimum_scaler, minimum);
+    binary_scalar_op_impl!(maximum_scaler, maximum);
+
+    fn binary_scalar_op<U, F>(storage: &Storage<T>, layout: &Layout, scalar: T, mut f: F) -> Storage<U> 
+    where 
+        U: WithDType, 
+        F: FnMut(T, T) -> U
+    {
+        let vec = storage.data();
+        let output: Vec<_> = layout.to_index()
+            .map(|i| f(vec[i], scalar))
+            .collect();
+        
+        Storage::<U>::new(output)
+    }
+}
+
+impl<T: NumDType> NdArray<T> {
+    pub fn affine(&self, mul: T, add: T) -> Result<Self> {
+        if self.element_count() == 0 {
+            return Ok(self.clone());
+        }
+        let storage = self.unary_op(|v| v * mul + add);
+        Ok(Self::from_storage(storage, self.shape()))
+    }
+
+    pub fn affine_assign(&self, mul: T, add: T) -> Result<()> {
+        if self.element_count() == 0 {
+            return Ok(());
+        }
+        self.unary_assign_op(|v| v * mul + add);
+        Ok(())
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////
+///        Binary Assign Op with NdArray and NdArray 
+//////////////////////////////////////////////////////////////////////////////
 
 macro_rules! assign_op_impl {
     ($fn_name:ident, $op:ident) => {
@@ -92,6 +157,9 @@ impl<T: NumDType> NdArray<T> {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////
+///        Unary Op / Unary Assign Op  for NdArray
+//////////////////////////////////////////////////////////////////////////////
 
 impl<T: NumDType> NdArray<T> {
     fn unary_op<U, F>(&self, mut f: F) -> Storage<U> 
@@ -123,12 +191,23 @@ impl<T: NumDType> NdArray<T> {
 
 macro_rules! float_unary_op_impl {
     ($fn_name:ident) => {
-        pub fn $fn_name(&self) -> Result<Self> {
+        pub fn $fn_name(&self) -> Self {
             if self.element_count() == 0 {
-                return Ok(self.clone());
+                return self.clone();
             }
             let storage = self.unary_op(F::$fn_name);
-            Ok(Self::from_storage(storage, self.shape()))
+            Self::from_storage(storage, self.shape())
+        }
+    };
+}
+
+macro_rules! float_unary_assign_op_impl {
+    ($fn_name:ident, $op:ident) => {
+        pub fn $fn_name(&self) {
+            if self.element_count() == 0 {
+                return;
+            }
+            self.unary_assign_op(F::$op);
         }
     };
 }
@@ -145,25 +224,24 @@ impl<F: FloatDType> NdArray<F> {
     float_unary_op_impl!(abs);
     float_unary_op_impl!(neg);
     float_unary_op_impl!(ln);
+
+    float_unary_assign_op_impl!(exp_assign, exp);
+    float_unary_assign_op_impl!(sin_assign, sin);
+    float_unary_assign_op_impl!(cos_assign, cos);
+    float_unary_assign_op_impl!(sqrt_assign, sqrt);
+    float_unary_assign_op_impl!(tanh_assign, tanh);
+    float_unary_assign_op_impl!(floor_assign, floor);
+    float_unary_assign_op_impl!(ceil_assign, ceil);
+    float_unary_assign_op_impl!(round_assign, round);
+    float_unary_assign_op_impl!(abs_assign, abs);
+    float_unary_assign_op_impl!(neg_assign, neg);
+    float_unary_assign_op_impl!(ln_assign, ln);
+    
 }
 
-impl<T: NumDType> NdArray<T> {
-    pub fn affine(&self, mul: T, add: T) -> Result<Self> {
-        if self.element_count() == 0 {
-            return Ok(self.clone());
-        }
-        let storage = self.unary_op(|v| v * mul + add);
-        Ok(Self::from_storage(storage, self.shape()))
-    }
-
-    pub fn affine_assign(&self, mul: T, add: T) -> Result<()> {
-        if self.element_count() == 0 {
-            return Ok(());
-        }
-        self.unary_assign_op(|v| v * mul + add);
-        Ok(())
-    }
-}
+//////////////////////////////////////////////////////////////////////////////
+///        Binary Boolean Op with NdArray and NdArray 
+//////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CmpOp {
@@ -222,6 +300,56 @@ impl<T: NumDType> NdArray<T> {
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////
+///        Binary Boolean Op with NdArray and scalar 
+//////////////////////////////////////////////////////////////////////////////
+
+impl<T: NumDType> NdArray<T> {
+    pub fn eq_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Eq)
+    }
+
+    pub fn ne_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Ne)
+    }
+
+    pub fn le_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Le)
+    }
+
+    pub fn ge_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Ge)
+    }
+
+    pub fn lt_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Lt)
+    }
+
+    pub fn gt_scalar(&self, scalar: T) -> NdArray<bool> {
+        self.cmp_scalar(scalar, CmpOp::Gt)
+    }
+
+    pub fn cmp_scalar(&self, scalar: T, op: CmpOp) -> NdArray<bool> {
+        match op {
+            CmpOp::Eq => self.cmp_scalar_impl(scalar, |a, b| { a == b }),
+            CmpOp::Ne => self.cmp_scalar_impl(scalar, |a, b| { a != b }),
+            CmpOp::Le => self.cmp_scalar_impl(scalar, |a, b| { a <= b }),
+            CmpOp::Ge => self.cmp_scalar_impl(scalar, |a, b| { a >= b }),
+            CmpOp::Lt => self.cmp_scalar_impl(scalar, |a, b| { a < b }),
+            CmpOp::Gt => self.cmp_scalar_impl(scalar, |a, b| { a > b }),
+        }
+    } 
+
+    fn cmp_scalar_impl<F>(&self, scalar: T, f: F) -> NdArray<bool>
+    where
+        F: FnMut(T, T) -> bool
+    {
+        // let storage: Storage<bool> = Self::binary_op(&self.storage(), &rhs.storage(), self.layout(), rhs.layout(), f);
+        let storage = Self::binary_scalar_op(&self.storage(), self.layout(), scalar, f);
+        NdArray::<bool>::from_storage(storage, self.shape())
+    }
+}
+
 use std::ops::{Add, Sub, Mul, Div};
 
 impl<T: NumDType> Add for &NdArray<T> {
@@ -232,9 +360,9 @@ impl<T: NumDType> Add for &NdArray<T> {
 }
 
 impl<T: NumDType> Add<T> for &NdArray<T> {
-    type Output = Result<NdArray<T>>;
+    type Output = NdArray<T>;
     fn add(self, rhs: T) -> Self::Output {
-        self.affine(T::one(), rhs)
+        self.add_scaler(rhs)
     }
 }
 
@@ -242,6 +370,13 @@ impl<T: NumDType> Sub for &NdArray<T> {
     type Output = Result<NdArray<T>>;
     fn sub(self, rhs: Self) -> Self::Output {
         NdArray::sub(self, rhs)
+    }
+}
+
+impl<T: NumDType> Sub<T> for &NdArray<T> {
+    type Output = NdArray<T>;
+    fn sub(self, rhs: T) -> Self::Output {
+        self.sub_scaler(rhs)
     }
 }
 
@@ -253,9 +388,9 @@ impl<T: NumDType> Mul for &NdArray<T> {
 }
 
 impl<T: NumDType> Mul<T> for &NdArray<T> {
-    type Output = Result<NdArray<T>>;
+    type Output = NdArray<T>;
     fn mul(self, rhs: T) -> Self::Output {
-        self.affine(rhs, T::zero())
+        self.mul_scaler(rhs)
     }
 }
 
@@ -266,6 +401,13 @@ impl<T: NumDType> Div for &NdArray<T> {
     }
 }
 
+impl<T: NumDType> Div<T> for &NdArray<T> {
+    type Output = NdArray<T>;
+    fn div(self, rhs: T) -> Self::Output {
+        self.div_scaler(rhs)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,16 +415,16 @@ mod tests {
     #[test]
     fn test_exp_log() {
         let a = NdArray::new(&[0.0f32, 1.0, 2.0]).unwrap();
-        let exp_a = a.exp().unwrap();
-        let log_a = exp_a.ln().unwrap();
+        let exp_a = a.exp();
+        let log_a = exp_a.ln();
         assert!(a.allclose(&log_a, 1e-5, 1e-8));
     }
 
     #[test]
     fn test_trig() {
         let a = NdArray::new(&[0.0f32, std::f32::consts::FRAC_PI_2]).unwrap();
-        let sin_a = a.sin().unwrap();
-        let cos_a = a.cos().unwrap();
+        let sin_a = a.sin();
+        let cos_a = a.cos();
 
         let expected_sin = NdArray::new(&[0.0f32, 1.0]).unwrap();
         let expected_cos = NdArray::new(&[1.0f32, 0.0]).unwrap();
@@ -296,8 +438,8 @@ mod tests {
     #[test]
     fn test_abs_neg() {
         let a = NdArray::new(&[-1.0f32, 0.0, 2.0]).unwrap();
-        let abs_a = a.abs().unwrap();
-        let neg_a = a.neg().unwrap();
+        let abs_a = a.abs();
+        let neg_a = a.neg();
 
         let expected_abs = NdArray::new(&[1.0f32, 0.0, 2.0]).unwrap();
         let expected_neg = NdArray::new(&[1.0f32, 0.0, -2.0]).unwrap();
@@ -309,9 +451,9 @@ mod tests {
     #[test]
     fn test_floor_ceil_round() {
         let a = NdArray::new(&[1.2f32, 2.7, -1.3]).unwrap();
-        let floor_a = a.floor().unwrap();
-        let ceil_a = a.ceil().unwrap();
-        let round_a = a.round().unwrap();
+        let floor_a = a.floor();
+        let ceil_a = a.ceil();
+        let round_a = a.round();
 
         let expected_floor = NdArray::new(&[1.0f32, 2.0, -2.0]).unwrap();
         let expected_ceil = NdArray::new(&[2.0f32, 3.0, -1.0]).unwrap();

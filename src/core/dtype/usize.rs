@@ -2,15 +2,15 @@ use crate::{Result, Storage};
 
 use super::{DType, IntCategory, IntDType, NumDType, UnsignedIntDType, WithDType};
 
-impl WithDType for u32 {
+impl WithDType for usize {
     const DTYPE: DType = DType::U32;
 }
 
-impl NumDType for u32 {
+impl NumDType for usize {
     type Category = IntCategory;
 
     fn from_f64(v: f64) -> Self {
-        v as u32
+        v as usize
     }
 
     fn to_f64(self) -> f64 {
@@ -18,11 +18,11 @@ impl NumDType for u32 {
     }
 
     fn from_usize(v: usize) -> Self {
-        v as u32
+        v
     }
 
     fn to_usize(self) -> usize {
-        self as usize
+        self
     }
 
     fn minimum(lhs: Self, rhs: Self) -> Self {
@@ -43,5 +43,5 @@ impl NumDType for u32 {
     }
 }
 
-impl IntDType for u32 {}
-impl UnsignedIntDType for u32 {}
+impl IntDType for usize {}
+impl UnsignedIntDType for usize {}

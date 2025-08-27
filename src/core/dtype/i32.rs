@@ -1,25 +1,12 @@
 use crate::{Result, Storage};
-
-use super::{DType, IntCategory, IntDType, NumDType, WithDType};
+use super::{DType, IntCategory, IntDType, NumDType, SignedIntDType, WithDType};
 
 impl WithDType for i32 {
     const DTYPE: DType = DType::I32;
-
-    fn dtype() -> DType {
-        DType::I32
-    }
 }
 
 impl NumDType for i32 {
     type Category = IntCategory;
-
-    fn min_value() -> Self {
-        i32::MIN
-    }
-
-    fn max_value() -> Self {
-        i32::MAX
-    }
 
     fn from_f64(v: f64) -> Self {
         v as i32
@@ -55,7 +42,9 @@ impl NumDType for i32 {
     }
 }
 
-impl IntDType for i32 {
+impl IntDType for i32 {}
+
+impl SignedIntDType for i32 {
     fn abs(self) -> i32 {
         if self > 0 { self } else { -self }
     }

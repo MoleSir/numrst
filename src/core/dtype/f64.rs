@@ -6,22 +6,10 @@ use super::{DType, FloatCategory, FloatDType, NumDType, WithDType};
 
 impl WithDType for f64 {
     const DTYPE: DType = DType::F64;
-
-    fn dtype() -> DType {
-        DType::F64
-    }
 }
 
 impl NumDType for f64 {
     type Category = FloatCategory;
-
-    fn min_value() -> Self {
-        <f64>::MIN
-    }
-
-    fn max_value() -> Self {
-        <f64>::MAX
-    }
 
     fn from_f64(v: f64) -> Self {
         v as f64
