@@ -33,6 +33,8 @@ fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     let ts = NdArray::trues((3, 4))?;
     let bs = NdArray::new(&[[true, false], [false, true]])?;
 
+    let f = NdArray::fill((3, 4), 1.0)?;
+    println!("{}", f.ge(3.0)?);
 
     println!("{}", ts);
 
