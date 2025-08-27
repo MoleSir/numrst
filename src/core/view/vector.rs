@@ -1,5 +1,5 @@
 use std::sync::{Arc, RwLock, RwLockReadGuard};
-use crate::{Dim, Error, NdArray, NumDType, Result, Storage, WithDType};
+use crate::{Error, NdArray, NumDType, Result, Storage, WithDType};
 
 pub struct VectorLayout {
     pub(crate) len: usize,
@@ -16,11 +16,6 @@ impl<T: WithDType> Vector<T> {
     pub fn from_ndarray(array: &NdArray<T>) -> Result<Self> {
         let _ = array.dims1()?;
         Ok(Self::from_ndarray_impl(array, 0))
-    }
-
-    pub fn from_ndarray_axis<D: Dim>(array: &NdArray<T>, axis: D) -> Result<Self> {
-        let axis = axis.to_index(array.shape(), "from_ndarray_axis")?;
-        Ok(Self::from_ndarray_impl(array, axis))
     }
 
     fn from_ndarray_impl(array: &NdArray<T>, axis: usize) -> Self {
@@ -72,6 +67,14 @@ impl<T: NumDType> Vector<T> {
         }
         let sum = self.iter().zip(rhs.iter()).map(|(a, b)| a * b).sum::<T>();
         Ok(sum)
+    }
+}
+
+impl<'a, T: WithDType> IntoIterator for &'a Vector<T> {
+    type Item = T;
+    type IntoIter = VectorIter<'a, T>;
+    fn into_iter(self) -> VectorIter<'a, T> {
+        self.iter()
     }
 }
 

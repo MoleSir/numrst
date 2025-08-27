@@ -182,6 +182,7 @@ impl Layout {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum LayoutIndex<'a> {
     UnContiguousIndex(UnContiguousIndex<'a>),
     ContiguousIndex(ContiguousIndex),
@@ -193,6 +194,20 @@ impl<'a> LayoutIndex<'a> {
             Self::ContiguousIndex(ContiguousIndex::from_layout(l))
         } else {
             Self::UnContiguousIndex(UnContiguousIndex::from_layout(l))
+        }
+    }
+
+    pub fn reset(&mut self) {
+        match self {
+            Self::UnContiguousIndex(index) => index.reset(),
+            Self::ContiguousIndex(index) => index.reset(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::UnContiguousIndex(index) => index.len(),
+            Self::ContiguousIndex(index) => index.len(),
         }
     }
 }
@@ -208,7 +223,9 @@ impl<'a> Iterator for LayoutIndex<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ContiguousIndex {
+    init_storage_index: usize,
     storage_index: usize,
     end_index: usize, 
 }
@@ -216,9 +233,18 @@ pub struct ContiguousIndex {
 impl ContiguousIndex {
     fn from_layout(l: &Layout) -> Self {
         Self {
+            init_storage_index: l.start_offset(),
             storage_index: l.start_offset(),
             end_index: l.start_offset() + l.element_count(),
         }
+    }
+
+    fn reset(&mut self) {
+        self.storage_index = self.init_storage_index;
+    }
+
+    fn len(&self) -> usize {
+        self.end_index - self.init_storage_index
     }
 }
 
@@ -236,12 +262,14 @@ impl Iterator for ContiguousIndex {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UnContiguousIndex<'a> {
+    init_storage_index: Option<usize>,
     next_storage_index: Option<usize>,
     multi_index: Vec<usize>,
     dims: &'a [usize],
     stride: &'a [usize],
+    len: usize,
 }
 
 impl<'a> UnContiguousIndex<'a> {
@@ -254,15 +282,25 @@ impl<'a> UnContiguousIndex<'a> {
             Some(start_offset)
         };
         UnContiguousIndex {
+            init_storage_index: next_storage_index,
             next_storage_index,
             multi_index: vec![0; dims.len()],
             dims,
             stride,
+            len: elem_count,
         }
     }
 
     fn from_layout(l: &'a Layout) -> Self {
         Self::new(l.dims(), l.stride(), l.start_offset())
+    }
+
+    pub fn reset(&mut self) {
+        self.next_storage_index = self.init_storage_index;
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
     }
 }
 

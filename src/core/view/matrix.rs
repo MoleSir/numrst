@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use crate::{Dim, Error, NdArray, Result, Storage, WithDType};
+use crate::{Error, NdArray, Result, Storage, WithDType};
 
 use super::{Vector, VectorLayout};
 
@@ -19,12 +19,6 @@ impl<T: WithDType> Matrix<T> {
     pub fn from_ndarray(array: &NdArray<T>) -> Result<Self> {
         let _ = array.dims2()?;
         Self::from_ndarray_impl(array, 0, 1)
-    }
-
-    pub fn from_ndarray_axis<D1: Dim, D2: Dim>(array: &NdArray<T>, axis1: D1, axis2: D2) -> Result<Self> {
-        let axis1 = axis1.to_index(array.shape(), "from_ndarray_axis")?;
-        let axis2 = axis2.to_index(array.shape(), "from_ndarray_axis")?;
-        Self::from_ndarray_impl(array, axis1, axis2)
     }
 
     fn from_ndarray_impl(array: &NdArray<T>, axis1: usize, axis2: usize) -> Result<Self> {

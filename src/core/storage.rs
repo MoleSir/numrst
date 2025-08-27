@@ -3,7 +3,9 @@ use rand_distr::{Distribution, StandardNormal, StandardUniform, Uniform};
 use crate::{Error, Result};
 use super::{DType, FloatDType, Layout, NumDType, Shape, WithDType};
 
+#[derive(Clone)]
 pub struct Storage<T>(Vec<T>);
+
 
 impl<T: NumDType> Storage<T> {
     pub fn zeros(shape: &Shape) -> Self {
@@ -12,7 +14,6 @@ impl<T: NumDType> Storage<T> {
 
     pub fn ones(shape: &Shape) -> Self {
         Self(vec![T::one(); shape.element_count()])
-
     }
 }
 

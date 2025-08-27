@@ -12,6 +12,7 @@ use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
 use super::{view::{Matrix, Vector}, DType, Dim, Layout, NumDType, Shape, Storage, WithDType};
+pub use iter::*;
 
 #[derive(Clone)]
 pub struct NdArray<D>(Arc<NdArrayImpl<D>>);
@@ -122,10 +123,6 @@ impl<T: NumDType> NdArray<T> {
 
     pub fn vector_view(&self) -> Result<Vector<T>> {
         Vector::<T>::from_ndarray(self)
-    }
-
-    pub fn vector_view_axis<D: Dim>(&self, axis: D) -> Result<Vector<T>> {
-        Vector::<T>::from_ndarray_axis(self, axis)
     }
 
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
