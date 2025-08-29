@@ -1,9 +1,8 @@
 mod npy;
-use std::path::Path;
-
+mod nrst;
 pub use npy::*;
-
-use crate::{DType, NdArray, Result, WithDType};
+pub use nrst::*;
+use crate::{DType, NdArray, Result};
 
 #[derive(Clone)]
 pub enum DynamicNdArray {
@@ -13,13 +12,6 @@ pub enum DynamicNdArray {
     USize(NdArray<usize>),
     F32(NdArray<f32>),
     F64(NdArray<f64>),
-}
-
-impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
-    pub fn save_npy_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
-        let npy = Npy::from_ndarray(self)?;
-        npy.write_file(path)
-    }
 }
 
 impl DynamicNdArray {
@@ -81,12 +73,5 @@ impl DynamicNdArray {
         } else {
             crate::bail!("Expect f64 dtype, but got {:?}", self.dtype())
         }
-    }
-}
-
-impl DynamicNdArray {
-    pub fn load_npy_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let npy = Npy::load_file(path)?;
-        npy.to_ndarray()
     }
 }

@@ -2,9 +2,25 @@ use crate::{DType, Error, NdArray, Result, Shape, Storage, WithDType};
 use std::{fs::File, io::{BufReader, BufWriter, Read, Write}, path::Path};
 use derive_builder::Builder;
 use bytemuck::{cast_slice, AnyBitPattern};
-
 use super::DynamicNdArray;
 
+impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
+    pub fn save_npy_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
+        let npy = Npy::from_ndarray(self)?;
+        npy.write_file(path)
+    }
+}
+
+impl DynamicNdArray {
+    pub fn load_npy_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let npy = Npy::load_file(path)?;
+        npy.to_ndarray()
+    }
+}
+
+const NPY_MAGIC: &[u8] = b"\x93NUMPY";
+
+// TODO: Vec<u8> is a wasted, we can read Vec<W> !
 #[derive(Debug, Builder)]
 #[builder(setter(into))]
 pub struct Npy {
@@ -23,8 +39,9 @@ impl Npy {
         builder.fortran_order(false);
         builder.shape(ndarray.dims());
 
-        let data_vec: Vec<D> = ndarray.storage().copy_data();
-        let data_bytes: Vec<u8> = bytemuck::cast_slice(&data_vec).to_vec();
+        let storage = ndarray.storage();
+        let data_vec = storage.data();
+        let data_bytes: Vec<u8> = bytemuck::cast_slice(data_vec).to_vec();
         builder.data(data_bytes);
 
         builder.build().map_err(|e| Error::Msg(format!("Build npy failed {}", e)))
@@ -83,7 +100,7 @@ impl Npy {
         // Read magic
         let mut magic = [0u8; 6];
         reader.read_exact(&mut magic)?;
-        if &magic != b"\x93NUMPY" {
+        if &magic != NPY_MAGIC {
             return Err(crate::Error::Msg("Not a NPY file".into()));
         }
 
@@ -177,7 +194,7 @@ impl Npy {
         let file = File::create(path)?;
         let mut writer = BufWriter::new(file);
 
-        writer.write_all(b"\x93NUMPY")?;
+        writer.write_all(NPY_MAGIC)?;
 
         writer.write_all(&[self.version.0, self.version.1])?;
 
