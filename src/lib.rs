@@ -1,7 +1,7 @@
 #![feature(mapped_lock_guards)]
 
 mod core;
-pub mod format;
+pub mod io;
 pub mod linalg;
 mod error;
 

@@ -1,13 +1,128 @@
+use zip::write::SimpleFileOptions;
+use zip::ZipArchive;
+use zip::ZipWriter;
 use crate::{DType, Error, NdArray, Result, Shape, WithDType};
 use super::DynamicNdArray;
 use super::utils::*;
+use std::collections::HashMap;
+use std::io::Cursor;
+use std::io::Seek;
 use std::{fs::File, io::{BufReader, BufWriter, Read, Write}, path::Path};
+
+/// Load a single `.npy` file into a [`DynamicNdArray`].
+///
+/// # Arguments
+/// * `path` - Path to the `.npy` file.
+///
+/// # Errors
+/// Returns an error if the file cannot be opened, read, or parsed.
+pub fn load_npy_file<P: AsRef<Path>>(path: P) -> Result<DynamicNdArray> {
+    DynamicNdArray::load_npy_file(path)
+}
+
+/// Save a [`DynamicNdArray`] into a `.npy` file.
+///
+/// # Arguments
+/// * `ndarray` - The array to save.
+/// * `path` - Path to the output `.npy` file.
+///
+/// # Errors
+/// Returns an error if the file cannot be created or written.
+pub fn save_npy_file<P: AsRef<std::path::Path>>(ndarray: &DynamicNdArray, path: P) -> Result<()> {
+    ndarray.save_npy_file(path)
+}
+
+/// Load multiple arrays from a `.npz` archive into a `HashMap`.
+///
+/// Each entry in the returned map corresponds to one `.npy` file inside the archive,
+/// where the key is the file stem (without extension) and the value is the array.
+///
+/// # Arguments
+/// * `path` - Path to the `.npz` archive.
+///
+/// # Errors
+/// Returns an error if the archive cannot be opened, read, or parsed.
+pub fn load_npz_file<P: AsRef<Path>>(path: P) -> Result<HashMap<String, DynamicNdArray>> {
+    let file = std::fs::File::open(path)?;
+    let mut archive = ZipArchive::new(file).map_err(|e| Error::Msg(e.to_string()))?;
+    let mut arrays = HashMap::new();
+
+    for i in 0..archive.len() {
+        let mut zip_file = archive.by_index(i).map_err(|e| Error::Msg(e.to_string()))?;
+        let mut buffer = Vec::new();
+        use std::io::Read;
+        zip_file.read_to_end(&mut buffer)?;
+        
+        let cursor = Cursor::new(buffer);
+        let array = DynamicNdArray::load_npy_reader(cursor)?;
+
+        let name = Path::new(zip_file.name())
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(zip_file.name())
+            .to_string();
+        arrays.insert(name, array);
+    }
+
+    Ok(arrays)
+}
+
+/// Save multiple arrays into a `.npz` archive.
+///
+/// Each array is stored as a separate `.npy` file inside the archive,
+/// using the map key as the file name.
+///
+/// # Arguments
+/// * `ndarrays` - A map of name → array pairs to save.
+/// * `path` - Path to the output `.npz` archive.
+///
+/// # Errors
+/// Returns an error if the file cannot be created or written.
+pub fn save_npz_file<P: AsRef<Path>>(ndarrays: &HashMap<String, DynamicNdArray>, path: P) -> Result<()> {
+    let file = File::create(path)?;
+    let mut zip = ZipWriter::new(file);
+
+    let options = SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .unix_permissions(0o755);
+    
+    for (name, array) in ndarrays {
+        zip.start_file(format!("{}.npy", name), options).map_err(|e| Error::Msg(e.to_string()))?;
+        array.save_npy_writer(&mut zip)?;
+    }
+
+    zip.finish().map_err(|e| Error::Msg(e.to_string()))?;
+    Ok(())
+}
 
 const NPY_MAGIC: &[u8] = b"\x93NUMPY";
 
-impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
+impl DynamicNdArray {
     pub fn save_npy_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
-        // Infomation
+        match self {
+            DynamicNdArray::Bool(arr) => arr.save_npy_file(path),
+            DynamicNdArray::I32(arr) => arr.save_npy_file(path),
+            DynamicNdArray::U32(arr) => arr.save_npy_file(path),
+            DynamicNdArray::USize(arr) => arr.save_npy_file(path),
+            DynamicNdArray::F32(arr) => arr.save_npy_file(path),
+            DynamicNdArray::F64(arr) => arr.save_npy_file(path),
+        }
+    }
+
+    pub fn save_npy_writer<W: Write>(&self, writer: &mut W) -> Result<()> {
+        match self {
+            DynamicNdArray::Bool(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::I32(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::U32(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::USize(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::F32(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::F64(arr) => arr.save_npy_writer(writer),
+        }
+    }
+}
+
+impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
+    pub fn save_npy_writer<W: Write>(&self, writer: &mut W) -> Result<()> {
         let descr = dtype_to_descr(D::DTYPE)?;
         let version = (1, 0);
         let fortran_order = false;
@@ -16,10 +131,6 @@ impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
         let storage = self.storage();
         let data_vec = storage.data();
         let bytes: Vec<u8> = bytemuck::cast_slice(data_vec).to_vec();
-
-        // Write file
-        let file = File::create(path)?;
-        let mut writer = BufWriter::new(file);
 
         writer.write_all(NPY_MAGIC)?;
 
@@ -55,13 +166,17 @@ impl<D: WithDType + bytemuck::NoUninit> NdArray<D> {
         writer.flush()?;
         Ok(())
     }
+
+    pub fn save_npy_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
+        // Write file
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+        self.save_npy_writer(&mut writer)
+    }
 }
 
 impl DynamicNdArray {
-    pub fn load_npy_file<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = File::open(path.as_ref())?;
-        let mut reader = BufReader::new(file);
-
+    pub fn load_npy_reader<R: Read + Seek>(mut reader: R) -> Result<Self> {
         // Read magic
         let mut magic = [0u8; 6];
         reader.read_exact(&mut magic)?;
@@ -155,14 +270,20 @@ impl DynamicNdArray {
         let shape: Shape = shape.into();
 
         match descr {
-            "<f4" => read_ndarray::<f32>(reader, shape).map(DynamicNdArray::F32),
-            "<f8" => read_ndarray::<f64>(reader, shape).map(DynamicNdArray::F64),
-            "<i4" => read_ndarray::<i32>(reader, shape).map(DynamicNdArray::I32),
-            "<u4" => read_ndarray::<u32>(reader, shape).map(DynamicNdArray::U32),
-            "|b1" => read_bool_ndarray(reader, shape).map(DynamicNdArray::Bool),
-            "<u8" => read_ndarray::<usize>(reader, shape).map(DynamicNdArray::USize),
+            "<f4" => read_ndarray::<f32, R>(reader, shape).map(DynamicNdArray::F32),
+            "<f8" => read_ndarray::<f64, R>(reader, shape).map(DynamicNdArray::F64),
+            "<i4" => read_ndarray::<i32, R>(reader, shape).map(DynamicNdArray::I32),
+            "<u4" => read_ndarray::<u32, R>(reader, shape).map(DynamicNdArray::U32),
+            "|b1" => read_bool_ndarray::<R>(reader, shape).map(DynamicNdArray::Bool),
+            "<u8" => read_ndarray::<usize, R>(reader, shape).map(DynamicNdArray::USize),
             _ => crate::bail!("Unsupported dtype: {}", descr),
         }
+    }
+
+    pub fn load_npy_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = File::open(path.as_ref())?;
+        let reader = BufReader::new(file);
+        Self::load_npy_reader(reader)
     }
 }
 
@@ -179,8 +300,12 @@ fn dtype_to_descr(dtype: DType) -> Result<&'static str> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use tempfile::NamedTempFile;
-    use crate::{format::DynamicNdArray, NdArray};
+    use crate::{io::DynamicNdArray, NdArray};
+
+    use super::{load_npz_file, save_npz_file};
 
     #[test]
     fn test_to_ndarray() {
@@ -204,5 +329,47 @@ mod test {
 
         let loaded_ndarray = DynamicNdArray::load_file(tmpfile.path()).unwrap().f32().unwrap();
         assert!(loaded_ndarray.allclose(&ndarray, 1e-6, 1e-6));
+    }
+
+    #[test]
+    fn test_load_npz() {
+        let ndarrays = load_npz_file("./data/npy/test1.npz").unwrap();
+        for (name, _) in ndarrays {
+            println!("{}", name);
+        }
+    }
+
+    #[test]
+    fn test_save_npz() {
+        let tmpfile = NamedTempFile::new().unwrap();
+
+        let scalar = NdArray::new(1).unwrap();
+        let vector_f32 = NdArray::new(&[1.0f32, 2., 3.]).unwrap();
+        let matrix_f32 = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
+        let ones_f32 = NdArray::<f32>::ones((2, 9)).unwrap();
+        let randn_f64 = NdArray::randn(0.0f64, 1., (1, 2, 3)).unwrap();
+        let fill_f64 = NdArray::fill((2, 3, 4), 1.2).unwrap();
+        let arange_f64 = NdArray::arange(0., 10.).unwrap();
+        let trues = NdArray::trues((3, 4)).unwrap();
+        let booleans = NdArray::new(&[[true, false], [false, true]]).unwrap();
+
+
+        let mut ndarrays = HashMap::new();
+        ndarrays.insert("scalar".to_string(), DynamicNdArray::I32(scalar));
+        ndarrays.insert("vector_f32".to_string(), DynamicNdArray::F32(vector_f32));
+        ndarrays.insert("matrix_f32".to_string(), DynamicNdArray::I32(matrix_f32));
+        ndarrays.insert("ones_f32".to_string(), DynamicNdArray::F32(ones_f32));
+        ndarrays.insert("randn_f64".to_string(), DynamicNdArray::F64(randn_f64));
+        ndarrays.insert("fill_f64".to_string(), DynamicNdArray::F64(fill_f64));
+        ndarrays.insert("arange_f64".to_string(), DynamicNdArray::F64(arange_f64));
+        ndarrays.insert("trues".to_string(), DynamicNdArray::Bool(trues));
+        ndarrays.insert("booleans".to_string(), DynamicNdArray::Bool(booleans));
+
+        save_npz_file(&ndarrays, tmpfile.path()).unwrap();
+
+        let ndarrays = load_npz_file(tmpfile.path()).unwrap();
+        for (name, _) in ndarrays {
+            println!("{}", name);
+        }
     }
 }

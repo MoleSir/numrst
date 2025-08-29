@@ -1,8 +1,9 @@
 mod npy;
-mod npz;
 mod nrst;
-mod nrsz;
 mod utils;
+pub use npy::*;
+pub use nrst::*;
+
 use crate::{DType, NdArray, Result};
 
 #[derive(Clone)]

@@ -1,7 +1,7 @@
-use std::{fs::File, io::{BufReader, Read}};
+use std::io::Read;
 use crate::{NdArray, Result, Shape, Storage, WithDType};
 
-pub fn read_ndarray<W: WithDType + bytemuck::Pod>(mut reader: BufReader<File>, shape: Shape) -> Result<NdArray<W>> {
+pub fn read_ndarray<W: WithDType + bytemuck::Pod, R: Read>(mut reader: R, shape: Shape) -> Result<NdArray<W>> {
     let element_size = shape.element_count();
     let data = read_as_vec::<W, _>(&mut reader, element_size)?;
 
@@ -9,7 +9,7 @@ pub fn read_ndarray<W: WithDType + bytemuck::Pod>(mut reader: BufReader<File>, s
     Ok(NdArray::from_storage(storage, shape))
 }
 
-pub fn read_bool_ndarray(mut reader: BufReader<File>, shape: Shape) -> Result<NdArray<bool>> {
+pub fn read_bool_ndarray<R: Read>(mut reader: R, shape: Shape) -> Result<NdArray<bool>> {
     let element_size = shape.element_count();
     let data = read_bools(&mut reader, element_size)?;
 
