@@ -1,15 +1,10 @@
-use std::{fs::File, io::{BufReader, BufWriter, Read, Write}, path::Path};
-use crate::{DType, Error, NdArray, Result, Shape, Storage, WithDType};
-
+use super::utils::*;
+use crate::{DType, Error, NdArray, Result, Shape, WithDType};
 use super::DynamicNdArray;
+
+use std::{fs::File, io::{BufReader, BufWriter, Read, Write}, path::Path};
+
 const NRST_MAGIC: &[u8] = b"\x25NUMRST";
-
-pub struct NRst {
-    pub shape: Shape,
-    pub dtype: DType,
-    pub data: Vec<u8>,
-}
-
 
 /*
     | MAGIC(7bytes) | DTYPE(1byte) | RANK(4bytes) | SHAPE(RANK * 4bytes) | DATA(..) |
@@ -85,36 +80,6 @@ impl<W: WithDType + bytemuck::NoUninit> NdArray<W> {
 
         Ok(())
     }
-}
-
-fn read_ndarray<W: WithDType + bytemuck::Pod>(mut reader: BufReader<File>, shape: Shape) -> Result<NdArray<W>> {
-    let element_size = shape.element_count();
-    let data = read_as_vec::<W, _>(&mut reader, element_size)?;
-
-    let storage = Storage::new(data);
-    Ok(NdArray::from_storage(storage, shape))
-}
-
-fn read_bool_ndarray(mut reader: BufReader<File>, shape: Shape) -> Result<NdArray<bool>> {
-    let element_size = shape.element_count();
-    let data = read_bools(&mut reader, element_size)?;
-
-    let storage = Storage::new(data);
-    Ok(NdArray::from_storage(storage, shape))
-}
-
-fn read_bools<R: Read>(reader: &mut R, len: usize) -> Result<Vec<bool>> {
-    let mut buf = vec![0u8; len];
-    reader.read_exact(&mut buf)?;
-    let vec = buf.into_iter().map(|b| b != 0).collect();
-    Ok(vec)
-}
-
-fn read_as_vec<T: bytemuck::Pod, R: Read>(reader: &mut R, len: usize) -> Result<Vec<T>> {
-    let mut buf = vec![0u8; len * std::mem::size_of::<T>()];
-    reader.read_exact(&mut buf)?;
-    let slice: &[T] = bytemuck::cast_slice(&buf);
-    Ok(slice.to_vec())
 }
 
 fn encode_dtype(dtype: DType) -> u8 {

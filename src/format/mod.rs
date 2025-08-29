@@ -1,7 +1,8 @@
 mod npy;
+mod npz;
 mod nrst;
-pub use npy::*;
-pub use nrst::*;
+mod nrsz;
+mod utils;
 use crate::{DType, NdArray, Result};
 
 #[derive(Clone)]
@@ -34,7 +35,6 @@ impl DynamicNdArray {
         }
     }
 
-    /// 类型安全地获取 u32 NdArray
     pub fn u32(self) -> Result<NdArray<u32>> {
         if let Self::U32(arr) = self {
             Ok(arr)
@@ -72,6 +72,74 @@ impl DynamicNdArray {
             Ok(arr)
         } else {
             crate::bail!("Expect f64 dtype, but got {:?}", self.dtype())
+        }
+    }
+}
+
+impl DynamicNdArray {
+    pub fn to_u32(self) -> NdArray<u32> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U32(arr) => arr,
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+    pub fn to_i32(self) -> NdArray<i32> {
+        match self {
+            Self::I32(arr) => arr,
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+    pub fn to_usize(self) -> NdArray<usize> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr,
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+    pub fn to_f32(self) -> NdArray<f32> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr,
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+    pub fn to_f64(self) -> NdArray<f64> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr,
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+    pub fn to_bool(self) -> NdArray<bool> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr,
         }
     }
 }

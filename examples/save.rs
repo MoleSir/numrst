@@ -1,17 +1,21 @@
-use numrst::NdArray;
+use std::fs::File;
+use std::io::BufReader;
+use zip::ZipArchive;
 
-#[allow(unused)]
-fn result_main() -> Result<(), Box<dyn std::error::Error>> {
-    let arr = NdArray::<f32>::randn(0., 1., (4, 5, 9)).unwrap();
-    arr.save_file("./data/nrst/test1.nrst")?;
-    let bs = NdArray::new(&[[true, false], [false, true]])?;
-    bs.save_file("./data/nrst/test2.nrst")?;
+fn main() -> zip::result::ZipResult<()> {
+    let file = File::open("example.npz")?;
+    let reader = BufReader::new(file);
+    let mut archive = ZipArchive::new(reader)?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        println!("File {}: {}", i, file.name());
+        // 这里可以把 file 的内容读取到 Vec<u8>
+        let mut data = Vec::new();
+        use std::io::Read;
+        file.read_to_end(&mut data)?;
+        // data 就是 .npy 文件的原始 bytes
+    }
 
     Ok(())
-}
-
-fn main() {
-    if let Err(e) = result_main() {
-        eprintln!("{e}");
-    }
 }
