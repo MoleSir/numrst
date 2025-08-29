@@ -12,7 +12,7 @@ pub enum DType {
     Bool,  // boolean
     I32,   // signed 32-bit
     U32,   // unsigned 32-bit
-    USIZE, // unsigned size
+    USize, // unsigned size
     F32,   // 32-bit float
     F64,   // 64-bit float
 }
@@ -23,7 +23,7 @@ impl DType {
             DType::Bool => std::mem::size_of::<bool>(),
             DType::I32 => std::mem::size_of::<i32>(),
             DType::U32 => std::mem::size_of::<u32>(),
-            DType::USIZE => std::mem::size_of::<usize>(),
+            DType::USize => std::mem::size_of::<usize>(),
             DType::F32 => std::mem::size_of::<f32>(),
             DType::F64 => std::mem::size_of::<f64>(),
         }
@@ -44,7 +44,7 @@ impl std::fmt::Display for DType {
             Self::Bool => write!(f, "boolean"),
             Self::I32 => write!(f, "32-bit signed"),
             Self::U32 => write!(f, "32-bit unsigned"),
-            Self::USIZE => write!(f, "unsigned size"),
+            Self::USize => write!(f, "unsigned size"),
             Self::F32 => write!(f, "32-bit float"),
             Self::F64 => write!(f, "64-bit float"),
         }

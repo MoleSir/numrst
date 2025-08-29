@@ -65,6 +65,10 @@ impl<T: WithDType> Storage<T> {
         T::DTYPE
     }
 
+    pub fn copy_data(&self) -> Vec<T> {
+        self.0.clone()
+    }
+
     pub fn get(&self, index: usize) -> Option<T> {
         self.0.get(index).copied()
     }

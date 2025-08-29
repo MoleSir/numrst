@@ -1,3 +1,5 @@
+use std::str::Utf8Error;
+
 use crate::{DType, Range, Shape};
 
 
@@ -155,6 +157,9 @@ pub enum Error {
     /// I/O error.
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Utf8(#[from] Utf8Error),
 
     #[error("{context}\n{inner}")]
     Context {
