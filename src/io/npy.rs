@@ -102,6 +102,9 @@ impl DynamicNdArray {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_npy_file(path),
             DynamicNdArray::U8(arr) => arr.save_npy_file(path),
+            DynamicNdArray::I8(arr) => arr.save_npy_file(path),
+            DynamicNdArray::U16(arr) => arr.save_npy_file(path),
+            DynamicNdArray::I16(arr) => arr.save_npy_file(path),
             DynamicNdArray::I32(arr) => arr.save_npy_file(path),
             DynamicNdArray::U32(arr) => arr.save_npy_file(path),
             DynamicNdArray::USize(arr) => arr.save_npy_file(path),
@@ -114,6 +117,9 @@ impl DynamicNdArray {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::U8(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::I8(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::U16(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::I16(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::I32(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::U32(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::USize(arr) => arr.save_npy_writer(writer),
@@ -272,11 +278,15 @@ impl DynamicNdArray {
         let shape: Shape = shape.into();
 
         match descr {
-            "<f4" => read_ndarray::<f32, R>(reader, shape).map(DynamicNdArray::F32),
-            "<f8" => read_ndarray::<f64, R>(reader, shape).map(DynamicNdArray::F64),
+            "|b1" => read_bool_ndarray::<R>(reader, shape).map(DynamicNdArray::Bool),
+            "<i1" => read_ndarray::<i8, R>(reader, shape).map(DynamicNdArray::I8),
+            "<u1" => read_ndarray::<u8, R>(reader, shape).map(DynamicNdArray::U8),
+            "<i2" => read_ndarray::<i16, R>(reader, shape).map(DynamicNdArray::I16),
+            "<u2" => read_ndarray::<u16, R>(reader, shape).map(DynamicNdArray::U16),
             "<i4" => read_ndarray::<i32, R>(reader, shape).map(DynamicNdArray::I32),
             "<u4" => read_ndarray::<u32, R>(reader, shape).map(DynamicNdArray::U32),
-            "|b1" => read_bool_ndarray::<R>(reader, shape).map(DynamicNdArray::Bool),
+            "<f4" => read_ndarray::<f32, R>(reader, shape).map(DynamicNdArray::F32),
+            "<f8" => read_ndarray::<f64, R>(reader, shape).map(DynamicNdArray::F64),
             "<u8" => read_ndarray::<usize, R>(reader, shape).map(DynamicNdArray::USize),
             _ => crate::bail!("Unsupported dtype: {}", descr),
         }
@@ -292,7 +302,10 @@ impl DynamicNdArray {
 fn dtype_to_descr(dtype: DType) -> Result<&'static str> {
     match dtype {
         DType::Bool => Ok("|b1"),
+        DType::I8 => Ok("<i1"),
         DType::U8 => Ok("<u1"),
+        DType::U16 => Ok("<u2"),
+        DType::I16 => Ok("<i2"),
         DType::U32 => Ok("<u4"),
         DType::I32 => Ok("<i4"),
         DType::USize => crate::bail!("Numpy does't support usize dtype"),

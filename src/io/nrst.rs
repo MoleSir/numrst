@@ -131,6 +131,9 @@ impl DynamicNdArray {
         match dtype {
             DType::Bool => read_bool_ndarray(reader, shape).map(DynamicNdArray::Bool),
             DType::U8 => read_ndarray::<u8, R>(reader, shape).map(DynamicNdArray::U8),
+            DType::I8 => read_ndarray::<i8, R>(reader, shape).map(DynamicNdArray::I8),
+            DType::I16 => read_ndarray::<i16, R>(reader, shape).map(DynamicNdArray::I16),
+            DType::U16 => read_ndarray::<u16, R>(reader, shape).map(DynamicNdArray::U16),
             DType::I32 => read_ndarray::<i32, R>(reader, shape).map(DynamicNdArray::I32),
             DType::U32 => read_ndarray::<u32, R>(reader, shape).map(DynamicNdArray::U32),
             DType::USize => read_ndarray::<usize, R>(reader, shape).map(DynamicNdArray::USize),
@@ -144,6 +147,9 @@ impl DynamicNdArray {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_file(path),
             DynamicNdArray::U8(arr) => arr.save_file(path),
+            DynamicNdArray::I8(arr) => arr.save_file(path),
+            DynamicNdArray::U16(arr) => arr.save_file(path),
+            DynamicNdArray::I16(arr) => arr.save_file(path),
             DynamicNdArray::I32(arr) => arr.save_file(path),
             DynamicNdArray::U32(arr) => arr.save_file(path),
             DynamicNdArray::USize(arr) => arr.save_file(path),
@@ -156,6 +162,9 @@ impl DynamicNdArray {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_writer(writer),
             DynamicNdArray::U8(arr) => arr.save_writer(writer),
+            DynamicNdArray::I8(arr) => arr.save_writer(writer),
+            DynamicNdArray::U16(arr) => arr.save_writer(writer),
+            DynamicNdArray::I16(arr) => arr.save_writer(writer),
             DynamicNdArray::I32(arr) => arr.save_writer(writer),
             DynamicNdArray::U32(arr) => arr.save_writer(writer),
             DynamicNdArray::USize(arr) => arr.save_writer(writer),
@@ -203,6 +212,9 @@ fn encode_dtype(dtype: DType) -> u8 {
     match dtype {
         DType::Bool      => 1,
         DType::U8        => 2,
+        DType::I8        => 3,
+        DType::U16       => 4,
+        DType::I16       => 5,
         DType::U32       => 6,
         DType::I32       => 7,
         DType::F32       => 11,
@@ -215,6 +227,9 @@ fn decode_dtype(code: u8) -> Result<DType> {
     match code {
         1  => Ok(DType::Bool),
         2  => Ok(DType::U8),
+        3  => Ok(DType::I8),
+        4  => Ok(DType::U16),
+        5  => Ok(DType::I16),
         6  => Ok(DType::U32),
         7  => Ok(DType::I32),
         11 => Ok(DType::F32),

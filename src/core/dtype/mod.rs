@@ -5,6 +5,9 @@ mod usize;
 mod i32;
 mod bool;
 mod u8;
+mod i8;
+mod u16;
+mod i16;
 
 use crate::Result;
 use super::Storage;
@@ -13,8 +16,11 @@ use super::Storage;
 pub enum DType {
     Bool,  // boolean
     U8,    // unsigned 8-bit
-    I32,   // signed 32-bit
+    I8,    // signed 8-bit
+    U16,   // unsigned 16-bit
+    I16,   // signed 16-bit
     U32,   // unsigned 32-bit
+    I32,   // signed 32-bit
     USize, // unsigned size
     F32,   // 32-bit float
     F64,   // 64-bit float
@@ -25,6 +31,9 @@ impl DType {
         match self {
             DType::Bool => std::mem::size_of::<bool>(),
             DType::U8 => std::mem::size_of::<u8>(),
+            DType::I8 => std::mem::size_of::<i8>(),
+            DType::I16 => std::mem::size_of::<i16>(),
+            DType::U16 => std::mem::size_of::<u16>(),
             DType::I32 => std::mem::size_of::<i32>(),
             DType::U32 => std::mem::size_of::<u32>(),
             DType::USize => std::mem::size_of::<usize>(),
@@ -46,12 +55,15 @@ impl std::fmt::Display for DType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Bool => write!(f, "boolean"),
-            Self::U8   => write!(f, "8-bit unsigned"),
-            Self::I32 => write!(f, "32-bit signed"),
-            Self::U32 => write!(f, "32-bit unsigned"),
-            Self::USize => write!(f, "unsigned size"),
-            Self::F32 => write!(f, "32-bit float"),
-            Self::F64 => write!(f, "64-bit float"),
+            Self::U8   => write!(f, "u8"),
+            Self::I8   => write!(f, "i8"),
+            Self::I16 => write!(f, "i16"),
+            Self::U16 => write!(f, "u16"),
+            Self::I32 => write!(f, "i32"),
+            Self::U32 => write!(f, "u32"),
+            Self::USize => write!(f, "usize"),
+            Self::F32 => write!(f, "f32"),
+            Self::F64 => write!(f, "f64"),
         }
     }
 }
@@ -131,4 +143,47 @@ pub trait DTypeConvert<To: WithDType>: WithDType {
     fn convert(self) -> To;
 }
 
+macro_rules! impl_dtype_convert_from {
+    ($from:ty, { $($to:ty),* }) => {
+        $(
+            impl DTypeConvert<$to> for $from {
+                #[inline]
+                fn convert(self) -> $to {
+                    self as $to
+                }
+            }
+        )*
+    };
+}
 
+impl_dtype_convert_from!(i8,  { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(u8,  { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(i16, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(u16, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(i32, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(u32, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(f32, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(f64, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+impl_dtype_convert_from!(usize, { i8, u8, i16, u16, i32, u32, usize, f32, f64 });
+
+macro_rules! impl_with_bool {
+    ($($dtype:ty),*) => {
+        $(
+            impl DTypeConvert<bool> for $dtype {
+                #[inline]
+                fn convert(self) -> bool {
+                    self != 0 as $dtype
+                }
+            }
+            
+            impl DTypeConvert<$dtype> for bool {
+                #[inline]
+                fn convert(self) -> $dtype {
+                    if self { 1 as $dtype } else { 0 as $dtype }
+                }
+            }
+        )*
+    };
+}
+
+impl_with_bool!(f32, f64, i8, u8, i16, u16, i32, u32, usize);

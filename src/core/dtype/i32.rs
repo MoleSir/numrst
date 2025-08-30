@@ -1,5 +1,5 @@
 use crate::{Result, Storage};
-use super::{DType, DTypeConvert, IntCategory, IntDType, NumDType, SignedIntDType, WithDType};
+use super::{DType, IntCategory, IntDType, NumDType, SignedIntDType, WithDType};
 
 impl WithDType for i32 {
     const DTYPE: DType = DType::I32;
@@ -53,11 +53,3 @@ impl SignedIntDType for i32 {
         -self
     }
 }
-
-impl DTypeConvert<u8> for i32 { fn convert(self) -> u8 { self as u8 } }
-impl DTypeConvert<i32> for i32 { fn convert(self) -> i32 { self } }
-impl DTypeConvert<u32> for i32 { fn convert(self) -> u32 { self as u32 } }
-impl DTypeConvert<usize> for i32 { fn convert(self) -> usize { self as usize } }
-impl DTypeConvert<f32> for i32 { fn convert(self) -> f32 { self as f32 } }
-impl DTypeConvert<f64> for i32 { fn convert(self) -> f64 { self as f64 } }
-impl DTypeConvert<bool> for i32 { fn convert(self) -> bool { self != 0 } }

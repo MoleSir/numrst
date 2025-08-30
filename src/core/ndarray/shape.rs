@@ -209,7 +209,23 @@ impl<T: WithDType> NdArray<T> {
         Ok(NdArray(Arc::new(tensor_)))
     }
 
-    pub fn cat<D: Dim>(arrs: &[Self], dim: D) -> Result<Self> {
+    /// Concatenates two or more tensors along a particular dimension.
+    ///
+    /// All tensors must of the same rank, and the output will have
+    /// the same rank
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
+    /// let b = NdArray::<f32>::zeros((2, 3)).unwrap();
+    ///
+    /// let c = NdArray::cat(&[&a, &b], 0).unwrap();
+    /// assert_eq!(c.dims(), &[4, 3]);
+    ///
+    /// let c = NdArray::cat(&[&a, &b], 1).unwrap();
+    /// assert_eq!(c.dims(), &[2, 6]);
+    /// ```
+    pub fn cat<A: AsRef<NdArray<T>>, D: Dim>(arrs: &[A], dim: D) -> Result<Self> {
         // check shape
         if arrs.is_empty() {
             Err(Error::OpRequiresAtLeastOneTensor { op: "cat" })?
@@ -217,28 +233,28 @@ impl<T: WithDType> NdArray<T> {
     
         // first arr's infomation
         let arr0 = &arrs[0];
-        let rank0 = arr0.rank();
+        let rank0 = arr0.as_ref().rank();
 
         // cat_dim must be valid!
-        let cat_dim = dim.to_index(arr0.shape(), "cat")?;
-        let mut target_dims = arr0.dims().to_vec();
+        let cat_dim = dim.to_index(arr0.as_ref().shape(), "cat")?;
+        let mut target_dims = arr0.as_ref().dims().to_vec();
         target_dims[cat_dim] = 0;
         let mut dim_offsets = vec![];
 
         for (_arr_index, arr) in arrs.iter().enumerate() {
             // check shape 
-            let rank = arr.rank();
+            let rank = arr.as_ref().rank();
             if rank != rank0 {
                 Err(Error::UnexpectedNumberOfDims {
                     expected: rank,
-                    got: arr.rank(),
-                    shape: arr.shape().clone(),
+                    got: arr.as_ref().rank(),
+                    shape: arr.as_ref().shape().clone(),
                 })?
             }
 
             // zip arr0's dims and arr's dims
-            for (dim_index, (v1, v2)) in arr0.dims().iter()
-                                                                    .zip(arr.dims().iter())
+            for (dim_index, (v1, v2)) in arr0.as_ref().dims().iter()
+                                                                    .zip(arr.as_ref().dims().iter())
                                                                     .enumerate()
             {
                 // accumalte the cat dim
@@ -251,9 +267,9 @@ impl<T: WithDType> NdArray<T> {
                 if dim_index != cat_dim && v1 != v2 {
                     Err(Error::ShapeMismatchCat {
                         dim: dim_index,
-                        first_shape: arr0.shape().clone(),
+                        first_shape: arr0.as_ref().shape().clone(),
                         n: dim_index + 1,
-                        nth_shape: arr0.shape().clone(),
+                        nth_shape: arr0.as_ref().shape().clone(),
                     })?
                 }
             }
@@ -272,27 +288,47 @@ impl<T: WithDType> NdArray<T> {
 
         for (arr_index, arr) in arrs.iter().enumerate() {
             // Take sub ndarray 
-            let sub_res_arr = res_arr.narrow(cat_dim, dim_offsets[arr_index], arr.dims()[cat_dim])?;
-            assert_eq!(sub_res_arr.shape(), arr.shape());
-            sub_res_arr.copy_from(arr)?;
+            let sub_res_arr = res_arr.narrow(cat_dim, dim_offsets[arr_index], arr.as_ref().dims()[cat_dim])?;
+            assert_eq!(sub_res_arr.shape(), arr.as_ref().shape());
+            sub_res_arr.copy_from(arr.as_ref())?;
         }
 
         Ok(res_arr)
     }
 
-    pub fn stack<D: Dim>(args: &[Self], dim: D) -> Result<Self> {
+    /// Stacks two or more tensors along a particular dimension.
+    ///
+    /// All tensors must have the same rank, and the output has one additional rank
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    /// let a = NdArray::<f32>::zeros((2, 3)).unwrap();
+    /// let b = NdArray::<f32>::zeros((2, 3)).unwrap();
+    ///
+    /// let c = NdArray::stack(&[&a, &b], 0).unwrap();
+    /// assert_eq!(c.dims(), &[2, 2, 3]);
+    ///
+    /// let c = NdArray::stack(&[&a, &b], 2).unwrap();
+    /// assert_eq!(c.dims(), &[2, 3, 2]);
+    /// ```
+    pub fn stack<A: AsRef<NdArray<T>>, D: Dim>(args: &[A], dim: D) -> Result<Self> {
         if args.is_empty() {
             Err(Error::OpRequiresAtLeastOneTensor { op: "stack" })?
         }
-        let dim = dim.to_index_plus_one(args[0].shape(), "stack")?;
+        let dim = dim.to_index_plus_one(args[0].as_ref().shape(), "stack")?;
         let args = args
             .iter()
-            .map(|t| t.unsqueeze(dim))
+            .map(|t| t.as_ref().unsqueeze(dim))
             .collect::<Result<Vec<_>>>()?;
         Self::cat(&args, dim)
     }
 }
 
+impl<T: WithDType> AsRef<NdArray<T>> for NdArray<T> {
+    fn as_ref(&self) -> &NdArray<T> {
+        self
+    }
+}
 
 #[cfg(test)]
 #[allow(unused)]

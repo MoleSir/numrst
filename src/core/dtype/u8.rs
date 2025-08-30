@@ -1,6 +1,6 @@
 use crate::{Result, Storage};
 
-use super::{DType, DTypeConvert, IntCategory, IntDType, NumDType, UnsignedIntDType, WithDType};
+use super::{DType, IntCategory, IntDType, NumDType, UnsignedIntDType, WithDType};
 
 impl WithDType for u8 {
     const DTYPE: DType = DType::U8;
@@ -45,11 +45,3 @@ impl NumDType for u8 {
 
 impl IntDType for u8 {}
 impl UnsignedIntDType for u8 {}
-
-impl DTypeConvert<i32> for u8 { fn convert(self) -> i32 { self as i32 } }
-impl DTypeConvert<u32> for u8 { fn convert(self) -> u32 { self as u32 } }
-impl DTypeConvert<u8> for u8 { fn convert(self) -> u8 { self } }
-impl DTypeConvert<usize> for u8 { fn convert(self) -> usize { self as usize } }
-impl DTypeConvert<f32> for u8 { fn convert(self) -> f32 { self as f32 } }
-impl DTypeConvert<f64> for u8 { fn convert(self) -> f64 { self as f64 } }
-impl DTypeConvert<bool> for u8 { fn convert(self) -> bool { self != 0 } }
