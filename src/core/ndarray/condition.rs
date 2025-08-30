@@ -75,7 +75,7 @@ impl<T: WithDType> ConditionValue<T> for T {
     }
 
     fn copy_self(&self, shape: &Shape) -> Result<NdArray<T>> {
-        NdArray::<T>::fill(shape, *self)
+        NdArray::<T>::full(shape, *self)
     }
 
     fn iter_value(&self) -> impl Iterator<Item = T> {

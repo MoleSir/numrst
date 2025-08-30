@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matrix_f32 = NdArray::new(&[[1, 2, 3], [3, 4, 5]]).unwrap();
     let ones_f32 = NdArray::<f32>::ones((2, 9)).unwrap();
     let randn_f64 = NdArray::randn(0.0f64, 1., (1, 2, 3)).unwrap();
-    let fill_f64 = NdArray::fill((2, 3, 4), 1.2).unwrap();
+    let fill_f64 = NdArray::full((2, 3, 4), 1.2).unwrap();
     let arange_f64 = NdArray::arange(0., 10.).unwrap();
     let trues = NdArray::trues((3, 4)).unwrap();
     let booleans = NdArray::new(&[[true, false], [false, true]]).unwrap();

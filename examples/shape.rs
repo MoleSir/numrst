@@ -31,15 +31,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("narrowed_range (axis=1, 0..2):\n{}", narrowed_range);
 
     // --- Concatenate ---
-    let c1 = NdArray::<i32>::fill((2, 2), 1)?;
-    let c2 = NdArray::<i32>::fill((2, 2), 2)?;
+    let c1 = NdArray::<i32>::full((2, 2), 1)?;
+    let c2 = NdArray::<i32>::full((2, 2), 2)?;
     let cat = NdArray::cat(&[&c1, &c2], 0)?; // concat along axis=0
 
     println!("Concatenate along axis=0:\n{}", cat);
 
     // --- Stack ---
-    let s1 = NdArray::<i32>::fill((2, 2), 3)?;
-    let s2 = NdArray::<i32>::fill((2, 2), 4)?;
+    let s1 = NdArray::<i32>::full((2, 2), 3)?;
+    let s2 = NdArray::<i32>::full((2, 2), 4)?;
     let stacked = NdArray::stack(&[&s1, &s2], 0)?; // stack new axis
 
     println!("Stacked along new axis=0:\n{}", stacked);

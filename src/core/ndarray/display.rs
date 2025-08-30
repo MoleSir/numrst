@@ -2,14 +2,21 @@ use std::fmt;
 use crate::WithDType;
 use super::NdArray;
 
+impl<T: WithDType> fmt::Debug for NdArray<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "NdArray<shape: {}, dtype: {}>", self.shape(), self.dtype())
+    }
+}
+
 impl<T: WithDType> fmt::Display for NdArray<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_scalar() {
+            return write!(f, "{}", self.to_scalar().unwrap());
+        }
+
         let impl_ref = &self.0;
         let shape = self.dims();
-
-        if shape.is_empty() {
-            return write!(f, "[]");
-        }
+        assert!(!shape.is_empty());
 
         fmt_ndarray(f, &*impl_ref.storage.read().unwrap().data(), shape)
     }

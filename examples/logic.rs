@@ -3,7 +3,7 @@ use numrst::NdArray;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // --- Comparison ops ---
     let a = NdArray::<i32>::arange(0, 9)?.reshape((3, 3))?;
-    let b = NdArray::<i32>::fill((3, 3), 4)?;
+    let b = NdArray::<i32>::full((3, 3), 4)?;
 
     let eq = a.eq(&b)?;
     let ne = a.ne(&b)?;

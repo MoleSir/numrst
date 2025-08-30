@@ -19,6 +19,47 @@ impl<T: WithDType> NdArray<T> {
 
         Ok(())
     }
+
+    pub fn assign<A: AssignToNdArray<T>>(&self, source: A) -> Result<()> {
+        A::assign_to(source, self)
+    }
+}
+
+pub trait AssignToNdArray<T: WithDType> {
+    fn assign_to(src: Self, dst: &NdArray<T>) -> Result<()>;
+}
+
+impl<T: WithDType> AssignToNdArray<T> for T {
+    fn assign_to(src: T, dst: &NdArray<T>) -> Result<()> {
+        let mut storage = dst.storage_mut(0);
+        for storage_index in dst.layout().to_index() {
+            storage.set_unchecked(storage_index, src);
+        }
+
+        Ok(())
+    }
+}
+
+impl<T: WithDType> AssignToNdArray<T> for &NdArray<T> {
+    fn assign_to(src: &NdArray<T>, dst: &NdArray<T>) -> Result<()> {
+        if src.shape() != dst.shape() {
+            Err(Error::ShapeMismatchCopyFrom { dst: dst.shape().clone(), src: src.shape().clone() })?
+        }
+
+        let mut storage = dst.storage_mut(0);
+
+        for (self_storage_index, src_value) in dst.layout().to_index().zip(src.iter()) {
+            storage.set_unchecked(self_storage_index, src_value);
+        }
+
+        Ok(())
+    }
+}
+
+impl<T: WithDType> AssignToNdArray<T> for NdArray<T> {
+    fn assign_to(src: NdArray<T>, dst: &NdArray<T>) -> Result<()> {
+        <&NdArray<T> as AssignToNdArray<T>>::assign_to(&src, dst)
+    }
 }
 
 impl<From: WithDType> NdArray<From> {
@@ -33,7 +74,20 @@ impl<From: WithDType> NdArray<From> {
 
 #[cfg(test)]
 mod tests {
+    use crate::IndexOp;
+
     use super::*;
+
+    #[test]
+    fn test_assign() {
+        let a = NdArray::new(&[[1, 2, 3], [3, 4, 5], [4, 5, 6]]).unwrap();
+        a.index(0).unwrap().assign(100).unwrap();
+        println!("{}", a);
+        a.index((1, 1)).unwrap().assign(200).unwrap();
+        println!("{}", a);
+        a.index((1.., 1..)).unwrap().assign(999).unwrap();
+        println!("{}", a);
+    }
 
     #[test]
     fn test_copy_1d() {

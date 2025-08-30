@@ -62,6 +62,23 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for T {
     }
 } 
 
+impl<T: WithDType> NdArrayBinaryOpRhs<T> for NdArray<T> {
+    fn op<U, F>(lhs: &NdArray<T>, rhs: NdArray<T>, f: F, op_name: &'static str) -> Result<NdArray<U>>
+        where 
+            U: WithDType, 
+            F: FnMut(T, T) -> U 
+    {
+        <&NdArray<T> as NdArrayBinaryOpRhs<T>>::op(lhs, &rhs, f, op_name)
+    }
+
+    fn assign_op<F>(lhs: &NdArray<T>, rhs: Self, f: F, op_name: &'static str) -> Result<()>
+        where 
+            F: FnMut(T, T) -> T 
+    {
+        <&NdArray<T> as NdArrayBinaryOpRhs<T>>::assign_op(lhs, &rhs, f, op_name)
+    }
+}
+
 impl<T: WithDType> NdArrayBinaryOpRhs<T> for &NdArray<T> {
     fn op<U, F>(lhs: &NdArray<T>, rhs: &NdArray<T>, mut f: F, op_name: &'static str) -> Result<NdArray<U>>
         where 
@@ -203,13 +220,21 @@ impl NdArray<bool> {
     pub fn xor(&self, rhs: impl NdArrayBinaryOpRhs<bool>) -> Result<NdArray<bool>> {
         NdArrayBinaryOpRhs::<bool>::op(self, rhs, |a, b| a ^ b, "xor")
     }
+
+    pub fn not(&self) -> NdArray<bool> {
+        if self.element_count() == 0 {
+            return self.clone();
+        }
+        let storage = self.unary_op(|v| !v);
+        Self::from_storage(storage, self.shape())
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////////
 ///        Unary Op / Unary Assign Op  for NdArray
 //////////////////////////////////////////////////////////////////////////////
 
-impl<T: NumDType> NdArray<T> {
+impl<T: WithDType> NdArray<T> {
     fn unary_op<U, F>(&self, mut f: F) -> Storage<U> 
     where
         U: WithDType,
@@ -282,14 +307,15 @@ impl<F: FloatDType> NdArray<F> {
     float_unary_op_impl!(exp);
     float_unary_op_impl!(sin);
     float_unary_op_impl!(cos);
-    float_unary_op_impl!(sqrt);
     float_unary_op_impl!(tanh);
+    float_unary_op_impl!(sqrt);
     float_unary_op_impl!(floor);
     float_unary_op_impl!(ceil);
     float_unary_op_impl!(round);
     float_unary_op_impl!(abs);
     float_unary_op_impl!(neg);
     float_unary_op_impl!(ln);
+    float_unary_op_impl!(recip);
 
     float_unary_assign_op_impl!(exp_assign, exp);
     float_unary_assign_op_impl!(sin_assign, sin);
@@ -302,6 +328,7 @@ impl<F: FloatDType> NdArray<F> {
     float_unary_assign_op_impl!(abs_assign, abs);
     float_unary_assign_op_impl!(neg_assign, neg);
     float_unary_assign_op_impl!(ln_assign, ln);
+    float_unary_assign_op_impl!(recip_assign, recip);
     
 }
 
@@ -314,10 +341,24 @@ impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Add<R> for &NdArray<T> {
     }
 }
 
+impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Add<R> for NdArray<T> {
+    type Output = Result<NdArray<T>>;
+    fn add(self, rhs: R) -> Self::Output {
+        NdArray::add(&self, rhs)
+    }
+}
+
 impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Sub<R> for &NdArray<T> {
     type Output = Result<NdArray<T>>;
     fn sub(self, rhs: R) -> Self::Output {
         NdArray::sub(self, rhs)
+    }
+}
+
+impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Sub<R> for NdArray<T> {
+    type Output = Result<NdArray<T>>;
+    fn sub(self, rhs: R) -> Self::Output {
+        NdArray::sub(&self, rhs)
     }
 }
 
@@ -328,10 +369,24 @@ impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Mul<R> for &NdArray<T> {
     }
 }
 
+impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Mul<R> for NdArray<T> {
+    type Output = Result<NdArray<T>>;
+    fn mul(self, rhs: R) -> Self::Output {
+        NdArray::mul(&self, rhs)
+    }
+}
+
 impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Div<R> for &NdArray<T> {
     type Output = Result<NdArray<T>>;
     fn div(self, rhs: R) -> Self::Output {
         NdArray::div(self, rhs)
+    }
+}
+
+impl<T: NumDType, R: NdArrayBinaryOpRhs<T>> Div<R> for NdArray<T> {
+    type Output = Result<NdArray<T>>;
+    fn div(self, rhs: R) -> Self::Output {
+        NdArray::div(&self, rhs)
     }
 }
 
@@ -389,6 +444,15 @@ mod tests {
         assert!(floor_a.allclose(&expected_floor, 1e-6, 1e-6));
         assert!(ceil_a.allclose(&expected_ceil, 1e-6, 1e-6));
         assert!(round_a.allclose(&expected_round, 1e-6, 1e-6));
+    }
+
+    #[test]
+    fn test_floor_recip() {
+        let a = NdArray::new(&[1.2f32, 2.7, -1.3]).unwrap();
+        let recip_a = a.recip();
+        let expected = NdArray::new(&[1.2f32.recip(), 2.7f32.recip(), -1.3f32.recip(),]).unwrap();
+
+        assert!(recip_a.allclose(&expected, 1e-6, 1e-6));
     }
 
     #[test]
@@ -509,10 +573,10 @@ mod tests {
 
     #[test]
     fn test_div_high_dim() {
-        let a = NdArray::fill((2, 2, 2, 2), 8.0f32).unwrap();
-        let b = NdArray::fill((2, 2, 2, 2), 2.0f32).unwrap();
+        let a = NdArray::full((2, 2, 2, 2), 8.0f32).unwrap();
+        let b = NdArray::full((2, 2, 2, 2), 2.0f32).unwrap();
         let c = NdArray::div(&a, &b).unwrap();
-        let expected = NdArray::fill((2, 2, 2, 2), 4.0f32).unwrap();
+        let expected = NdArray::full((2, 2, 2, 2), 4.0f32).unwrap();
         assert!(c.allclose(&expected, 1e-6, 1e-6));
     }
 
@@ -716,5 +780,24 @@ mod tests {
         let le_res = a.le(3).unwrap();
         let expected_le = NdArray::new(&[[true, true], [true, false]]).unwrap();
         assert_eq!(le_res.to_vec(), expected_le.to_vec());
+    }
+
+    #[test]
+    fn test_std_ops() {
+        let a = NdArray::new(&[[1., 2.], [3., 4.]]).unwrap();
+        let b = NdArray::new(&[[2., 2.], [1., 5.]]).unwrap();
+        let _ = (a + b).unwrap();
+
+        let a = NdArray::new(&[[1., 2.], [3., 4.]]).unwrap();
+        let b = NdArray::new(&[[2., 2.], [1., 5.]]).unwrap();
+        let _ = (&a + &b).unwrap();
+
+        let a = NdArray::new(&[[1., 2.], [3., 4.]]).unwrap();
+        let b = NdArray::new(&[[2., 2.], [1., 5.]]).unwrap();
+        let _ = (a + &b).unwrap();
+
+        let a = NdArray::new(&[[1., 2.], [3., 4.]]).unwrap();
+        let b = NdArray::new(&[[2., 2.], [1., 5.]]).unwrap();
+        let _ = (&a + b).unwrap();
     }
 }

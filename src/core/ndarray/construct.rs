@@ -18,15 +18,15 @@ impl<T: WithDType> NdArray<T> {
         Ok(Self::from_storage(storage, shape))
     }
 
-    /// Creates an array filled with a constant `value`.
+    /// Creates an array full with a constant `value`.
     ///
     /// ```rust
     /// use numrst::NdArray;
     ///
-    /// let a = NdArray::fill((2, 2), 7).unwrap();
+    /// let a = NdArray::full((2, 2), 7).unwrap();
     /// println!("{}", a);
     /// ```
-    pub fn fill<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
+    pub fn full<S: Into<Shape>>(shape: S, value: T) -> Result<Self> {
         let shape: Shape = shape.into();
         let storage = Storage::new(vec![value; shape.element_count()]);
         Ok(Self::from_storage(storage, shape))

@@ -5,7 +5,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let zeros = NdArray::<f32>::zeros((2, 3))?;
     let ones = NdArray::<f32>::ones((2, 3))?;
     let arange = NdArray::<i32>::arange(0, 10)?;
-    let rand = NdArray::<f32>::rand(0.0, 1.0, (2, 2))?;
+    let rand = NdArray::<f32>::rand(0.0, 1.0, (2, 5, 3, 4))?;
     let randn = NdArray::<f32>::randn(0.0, 1.0, (2, 2))?;
 
     println!("zeros:\n{}", zeros);

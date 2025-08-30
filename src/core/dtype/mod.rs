@@ -55,15 +55,15 @@ impl std::fmt::Display for DType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Bool => write!(f, "boolean"),
-            Self::U8   => write!(f, "u8"),
-            Self::I8   => write!(f, "i8"),
-            Self::I16 => write!(f, "i16"),
-            Self::U16 => write!(f, "u16"),
-            Self::I32 => write!(f, "i32"),
-            Self::U32 => write!(f, "u32"),
+            Self::U8   => write!(f, "uint8"),
+            Self::I8   => write!(f, "int8"),
+            Self::I16 => write!(f, "int16"),
+            Self::U16 => write!(f, "uint16"),
+            Self::I32 => write!(f, "int32"),
+            Self::U32 => write!(f, "uint32"),
             Self::USize => write!(f, "usize"),
-            Self::F32 => write!(f, "f32"),
-            Self::F64 => write!(f, "f64"),
+            Self::F32 => write!(f, "float32"),
+            Self::F64 => write!(f, "float64"),
         }
     }
 }

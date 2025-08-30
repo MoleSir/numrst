@@ -572,7 +572,7 @@ mod tests {
 
     #[test]
     fn test_all_same() {
-        let arr = NdArray::fill((3, 3), 7).unwrap();
+        let arr = NdArray::full((3, 3), 7).unwrap();
         assert_eq!(arr.sum(), 7 * 9);
         assert_eq!(arr.product(), 7_i32.pow(9));
         assert_eq!(arr.min(), 7);

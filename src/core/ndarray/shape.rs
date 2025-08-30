@@ -325,6 +325,64 @@ impl<T: WithDType> NdArray<T> {
             .collect::<Result<Vec<_>>>()?;
         Self::cat(&args, dim)
     }
+
+    /// Splits a tensor along a specified dimension into multiple sub-tensors.
+    ///
+    /// The tensor is split along the given `dim` into as many sub-tensors as
+    /// the size of that dimension. Each sub-tensor has the same shape as the
+    /// original tensor, except the size along `dim` becomes 1.
+    ///
+    /// ```rust
+    /// use numrst::NdArray;
+    ///
+    /// let a = NdArray::new(&[[1, 2], [3, 4], [5, 6]]).unwrap();
+    ///
+    /// // Split along axis 0 (rows)
+    /// let splits = a.split(0).unwrap();
+    /// assert_eq!(splits.len(), 3);
+    /// assert_eq!(splits[0].to_vec(), [1, 2]);
+    /// assert_eq!(splits[1].to_vec(), [3, 4]);
+    /// assert_eq!(splits[2].to_vec(), [5, 6]);
+    ///
+    /// // Split along axis 1 (columns)
+    /// let splits = a.split(1).unwrap();
+    /// assert_eq!(splits.len(), 2);
+    /// assert_eq!(splits[0].to_vec(), [1, 3, 5]);
+    /// assert_eq!(splits[1].to_vec(), [2, 4, 6]);
+    ///
+    /// // 1D array
+    /// let b = NdArray::new(&[10, 20, 30]).unwrap();
+    /// let splits = b.split(0).unwrap();
+    /// assert_eq!(splits.len(), 3);
+    /// assert_eq!(splits[0].to_vec(), [10]);
+    /// assert_eq!(splits[1].to_vec(), [20]);
+    /// assert_eq!(splits[2].to_vec(), [30]);
+    /// ```
+    pub fn split<D: Dim>(&self, dim: D) -> Result<Vec<Self>> {
+        let split_index = dim.to_index(self.shape(), "split")?;
+        let split_dim_size = self.dims()[split_index];
+        let mut splited_shape = self.dims().to_vec();
+        splited_shape.remove(split_index);
+        let splited_shape: Shape = splited_shape.into();
+        
+
+        let mut vec = vec![];
+        for i in 0..split_dim_size {
+            let mut data: Vec<T> = Vec::with_capacity(splited_shape.element_count());
+            unsafe { data.set_len(splited_shape.element_count()) };
+            let storage = Storage::new(data);
+            let arr = Self::from_storage(storage, splited_shape.clone());
+            
+            // Copy data
+            let sub_self = self.narrow(split_index, i, 1)?.squeeze(split_index)?;
+            assert_eq!(sub_self.dims(), splited_shape.dims());
+            arr.assign(sub_self)?;
+
+            vec.push(arr);
+        }   
+
+        Ok(vec)
+    }
 }
 
 impl<T: WithDType> AsRef<NdArray<T>> for NdArray<T> {
@@ -376,8 +434,8 @@ mod test {
     
     #[test]
     fn test_cat_3d() -> Result<()> {
-        let a = NdArray::fill((2, 2, 2), 1)?;
-        let b = NdArray::fill((2, 2, 2), 2)?;
+        let a = NdArray::full((2, 2, 2), 1)?;
+        let b = NdArray::full((2, 2, 2), 2)?;
     
         let c = NdArray::cat(&[a, b], 0)?;
         assert_eq!(c.dims(), [4, 2, 2]);
@@ -478,4 +536,79 @@ mod test {
         assert!(res.is_err());
     }
     
+    #[test]
+    fn test_split_1d() -> Result<()> {
+        let a = NdArray::new(&[10, 20, 30, 40])?;
+        let splits = a.split(0)?; // axis 0
+    
+        assert_eq!(splits.len(), 4);
+        assert_eq!(splits[0].to_vec(), [10]);
+        assert_eq!(splits[1].to_vec(), [20]);
+        assert_eq!(splits[2].to_vec(), [30]);
+        assert_eq!(splits[3].to_vec(), [40]);
+    
+        Ok(())
+    }
+
+    #[test]
+    fn test_split_2d_axis0() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4], [5, 6], [7, 8]])?;
+        let splits = a.split(0)?;
+        
+        assert_eq!(splits.len(), 4);
+        assert_eq!(splits[0].to_vec(), [1, 2]);
+        assert_eq!(splits[1].to_vec(), [3, 4]);
+        assert_eq!(splits[2].to_vec(), [5, 6]);
+        assert_eq!(splits[3].to_vec(), [7, 8]);
+        
+        Ok(())
+    }
+    
+    #[test]
+    fn test_split_2d_axis1() -> Result<()> {
+        let a = NdArray::new(&[[1, 2, 3], [4, 5, 6]])?;
+        let splits = a.split(1)?;
+        
+        assert_eq!(splits.len(), 3);
+        assert_eq!(splits[0].to_vec(), [1, 4]); 
+        assert_eq!(splits[1].to_vec(), [2, 5]); 
+        assert_eq!(splits[2].to_vec(), [3, 6]); 
+        
+        Ok(())
+    }
+    
+    #[test]
+    fn test_split_3d_axis2() -> Result<()> {
+        let a = NdArray::new(&[
+            [[1, 2], [3, 4]],
+            [[5, 6], [7, 8]]
+        ])?;
+        let splits = a.split(2)?;
+        
+        assert_eq!(splits.len(), 2);
+        assert_eq!(splits[0].to_vec(), [1, 3, 5, 7]); 
+        assert_eq!(splits[1].to_vec(), [2, 4, 6, 8]); 
+        
+        Ok(())
+    }
+    
+    #[test]
+    fn test_split_single_element() -> Result<()> {
+        let a = NdArray::new(&[42])?;
+        let splits = a.split(0)?;
+        
+        assert_eq!(splits.len(), 1);
+        assert_eq!(splits[0].to_vec(), [42]);
+        
+        Ok(())
+    }
+    
+    #[test]
+    fn test_split_empty_array() -> Result<()> {
+        let a = NdArray::<i32>::zeros((0, 2))?;
+        let splits = a.split(0)?;
+        
+        assert!(splits.is_empty()); 
+        Ok(())
+    }
 }
