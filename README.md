@@ -38,6 +38,10 @@ It provides a rich set of numerical operations, including broadcasting, indexing
 - Matrix operations:
   - `matmul`
 
+- File format: 
+  - Support operate with .npy and .npz
+  - Custom file format .nrst and .nrsz
+
 
 
 ## 📦 Installation
@@ -54,9 +58,9 @@ numrst = { git = "https://github.com/MoleSir/numrst" }
 ## Quick Start
 
 ```rust
-use numrst::prelude::;
+use numrst::prelude::*;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a 5x5x5 zero array
     let arr = NdArray::<u32>::zeros((5, 5, 5))?;
 

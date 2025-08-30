@@ -430,7 +430,6 @@ mod test {
         let trues = NdArray::trues((3, 4)).unwrap();
         let booleans = NdArray::new(&[[true, false], [false, true]]).unwrap();
 
-
         let mut ndarrays = HashMap::new();
         ndarrays.insert("scalar".to_string(), DynamicNdArray::I32(scalar));
         ndarrays.insert("vector_f32".to_string(), DynamicNdArray::F32(vector_f32));
