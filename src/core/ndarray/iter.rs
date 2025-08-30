@@ -20,6 +20,11 @@ impl<'a, T: WithDType> StorageRef<'a, T> {
     pub fn get_unchecked(&self, index: usize) -> T {
         self.0[index]
     }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<'a, T: WithDType> StorageMut<'a, T> {

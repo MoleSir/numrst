@@ -10,7 +10,7 @@ impl Shape {
         Self(vec![])
     }
 
-    pub fn is_scaler(&self) -> bool {
+    pub fn is_scalar(&self) -> bool {
         self.0.is_empty()
     } 
 

@@ -228,7 +228,7 @@ impl<T: WithDType> NdArray<T> {
     pub fn cat<A: AsRef<NdArray<T>>, D: Dim>(arrs: &[A], dim: D) -> Result<Self> {
         // check shape
         if arrs.is_empty() {
-            Err(Error::OpRequiresAtLeastOneTensor { op: "cat" })?
+            Err(Error::OpRequiresAtLeastOneNdArray { op: "cat" })?
         }
     
         // first arr's infomation
@@ -313,7 +313,7 @@ impl<T: WithDType> NdArray<T> {
     /// ```
     pub fn stack<A: AsRef<NdArray<T>>, D: Dim>(args: &[A], dim: D) -> Result<Self> {
         if args.is_empty() {
-            Err(Error::OpRequiresAtLeastOneTensor { op: "stack" })?
+            Err(Error::OpRequiresAtLeastOneNdArray { op: "stack" })?
         }
         let dim = dim.to_index_plus_one(args[0].as_ref().shape(), "stack")?;
         let args = args

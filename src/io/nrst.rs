@@ -1,7 +1,7 @@
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 use super::utils::*;
-use crate::{DType, Error, NdArray, Result, Shape, WithDType};
+use crate::{DType, NdArray, Result, Shape, WithDType};
 use super::DynamicNdArray;
 
 use std::{collections::HashMap, fs::File, io::{BufReader, BufWriter, Cursor, Read, Seek, Write}, path::Path};
@@ -39,11 +39,11 @@ pub fn save_file<P: AsRef<Path>>(ndarray: &DynamicNdArray, path: P) -> Result<()
 /// to its corresponding `DynamicNdArray`.
 pub fn load_zfile<P: AsRef<Path>>(path: P) -> Result<HashMap<String, DynamicNdArray>> {
     let file = std::fs::File::open(path)?;
-    let mut archive = ZipArchive::new(file).map_err(|e| Error::Msg(e.to_string()))?;
+    let mut archive = ZipArchive::new(file)?;
     let mut arrays = HashMap::new();
 
     for i in 0..archive.len() {
-        let mut zip_file = archive.by_index(i).map_err(|e| Error::Msg(e.to_string()))?;
+        let mut zip_file = archive.by_index(i)?;
         let mut buffer = Vec::new();
         use std::io::Read;
         zip_file.read_to_end(&mut buffer)?;
@@ -82,12 +82,22 @@ pub fn save_zfile<P: AsRef<Path>>(ndarrays: &HashMap<String, DynamicNdArray>, pa
         .unix_permissions(0o755);
     
     for (name, array) in ndarrays {
-        zip.start_file(format!("{}.npy", name), options).map_err(|e| Error::Msg(e.to_string()))?;
+        zip.start_file(format!("{}.npy", name), options)?;
         array.save_writer(&mut zip)?;
     }
 
-    zip.finish().map_err(|e| Error::Msg(e.to_string()))?;
+    zip.finish()?;
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum NrstError {
+    // === Npy Error ===
+    #[error("not a npy file for can't read correct magic")]
+    NotNrstFile,
+
+    #[error("Invalid dtype code: {0}")]
+    InvalidDTypeCode(u8),
 }
 
 const NRST_MAGIC: &[u8] = b"\x25NUMRST";
@@ -108,7 +118,7 @@ impl DynamicNdArray {
         let mut magic = [0u8; 7];
         reader.read_exact(&mut magic)?;
         if &magic != NRST_MAGIC {
-            return Err(crate::Error::Msg("Not a NRST file".into()));
+            Err(NrstError::NotNrstFile)?;
         }
 
         let mut dtype = [0u8];
@@ -235,7 +245,7 @@ fn decode_dtype(code: u8) -> Result<DType> {
         11 => Ok(DType::F32),
         12 => Ok(DType::F64),
         13 => Ok(DType::USize),
-        _  => Err(Error::Msg(format!("Unknown dtype code: {}", code))),
+        _  => Err(NrstError::InvalidDTypeCode(code))?,
     }
 }
 

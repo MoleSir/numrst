@@ -1,7 +1,7 @@
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 use zip::ZipWriter;
-use crate::{DType, Error, NdArray, Result, Shape, WithDType};
+use crate::{DType, NdArray, Result, Shape, WithDType};
 use super::DynamicNdArray;
 use super::utils::*;
 use std::collections::HashMap;
@@ -44,11 +44,11 @@ pub fn save_npy_file<P: AsRef<std::path::Path>>(ndarray: &DynamicNdArray, path: 
 /// Returns an error if the archive cannot be opened, read, or parsed.
 pub fn load_npz_file<P: AsRef<Path>>(path: P) -> Result<HashMap<String, DynamicNdArray>> {
     let file = std::fs::File::open(path)?;
-    let mut archive = ZipArchive::new(file).map_err(|e| Error::Msg(e.to_string()))?;
+    let mut archive = ZipArchive::new(file)?;
     let mut arrays = HashMap::new();
 
     for i in 0..archive.len() {
-        let mut zip_file = archive.by_index(i).map_err(|e| Error::Msg(e.to_string()))?;
+        let mut zip_file = archive.by_index(i)?;
         let mut buffer = Vec::new();
         use std::io::Read;
         zip_file.read_to_end(&mut buffer)?;
@@ -87,12 +87,42 @@ pub fn save_npz_file<P: AsRef<Path>>(ndarrays: &HashMap<String, DynamicNdArray>,
         .unix_permissions(0o755);
     
     for (name, array) in ndarrays {
-        zip.start_file(format!("{}.npy", name), options).map_err(|e| Error::Msg(e.to_string()))?;
+        zip.start_file(format!("{}.npy", name), options)?;
         array.save_npy_writer(&mut zip)?;
     }
 
-    zip.finish().map_err(|e| Error::Msg(e.to_string()))?;
+    zip.finish()?;
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum NpyError {
+    // === Npy Error ===
+    #[error("not a npy file for can't read correct magic")]
+    NotNpyFile,
+
+    #[error("unsupported NPY version {major}.{minor}")]
+    UnsupportVersion {
+        major: u8,
+        minor: u8,
+    },
+
+    #[error("{error} in {field} field")]
+    Header {
+        error: String,
+        field: &'static str 
+    },
+
+    #[error("no exit {field} field")]
+    LackField {
+        field: &'static str 
+    },
+
+    #[error("unsupport descr {0}")]
+    UnsupportedDescr(String),
+
+    #[error("Numpy does't support usize dtype")]
+    UnsupportUSize,
 }
 
 const NPY_MAGIC: &[u8] = b"\x93NUMPY";
@@ -189,7 +219,7 @@ impl DynamicNdArray {
         let mut magic = [0u8; 6];
         reader.read_exact(&mut magic)?;
         if &magic != NPY_MAGIC {
-            return Err(crate::Error::Msg("Not a NPY file".into()));
+            Err( NpyError::NotNpyFile )?;
         }
 
         // Read version
@@ -209,7 +239,7 @@ impl DynamicNdArray {
                 reader.read_exact(&mut buf)?;
                 u32::from_le_bytes(buf) as usize
             }
-            _ => return Err(crate::Error::Msg(format!("Unsupported NPY version {}.{}", version.0, version.1).into())),
+            _ => Err( NpyError::UnsupportVersion { major: version.0, minor: version.1 })?,
         };
 
         // Read Header
@@ -229,36 +259,67 @@ impl DynamicNdArray {
         let mut header_str = header_str;
         while !header_str.is_empty() {
             if header_str.starts_with("'descr'") {
-                let colon_index = header_str.find(",").ok_or_else(|| Error::Msg("No colon in 'descr' field".into()))?;
+                let colon_index = header_str.find(",")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "descr", 
+                        error: "No colon".into() 
+                    })?;
                 // ": '<f8'"
                 let descr = &header_str[7..colon_index];
-                let ref1_index = descr.find("'").ok_or_else(|| Error::Msg("No start ' in 'descr' field value".into()))?;
+                let ref1_index = descr.find("'")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "descr", 
+                        error: "No start ' in 'descr' field value".into() 
+                    })?;
                 // "<f8'"
                 let descr = &descr[ref1_index+1..];
-                let ref2_index = descr.find("'").ok_or_else(|| Error::Msg("No end ' in 'descr' field value".into()))?;
+                let ref2_index = descr.find("'")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "descr", 
+                        error: "No end ' in 'descr' field value".into() 
+                    })?;
                 // "<f8"
                 let descr = &descr[..ref2_index];
                 descr_opt = Some(descr);
 
                 header_str = header_str[colon_index+1..].trim_start();
             } else if header_str.starts_with("'fortran_order'") {
-                let colon_index = header_str.find(",").ok_or_else(|| Error::Msg("No colon in 'fortran_order' field".into()))?;
+                let colon_index = header_str.find(",")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "fortran_order", 
+                        error: "No colon in 'fortran_order' field".into() 
+                    })?;
                 // ": False"
                 let fortran_order = &header_str[15..colon_index];
-                let index = fortran_order.find(":").ok_or_else(|| Error::Msg("No : in 'fortran_order' field".into()))?;
+                let index = fortran_order.find(":")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "fortran_order", 
+                        error: "No : in 'fortran_order' field".into() 
+                    })?;
                 // "False"
                 let fortran_order = fortran_order[index+1..].trim();
                 match fortran_order {
                     "False" => fortran_order_opt = Some(false),
                     "True" => fortran_order_opt = Some(true),
-                    _ => Err(Error::Msg(format!("Unsupport fortran_order '{}'", fortran_order)))?,
+                    _ => Err(NpyError::Header { 
+                        field: "fortran_order", 
+                        error: format!("Unsupported value '{}'", fortran_order) 
+                    })?,
                 };
 
                 header_str = header_str[colon_index+1..].trim_start();
             } else if header_str.starts_with("'shape'") {
                 // "'shape': (3, 4), "
-                let left_brace_index = header_str.find("(").ok_or_else(|| Error::Msg("No ( in 'shape' field".into()))?;
-                let right_brace_index = header_str.find(")").ok_or_else(|| Error::Msg("No ) in 'shape' field".into()))?;
+                let left_brace_index = header_str.find("(")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "shape", 
+                        error: "No ( in 'shape' field".into() 
+                    })?;
+                let right_brace_index = header_str.find(")")
+                    .ok_or_else(|| NpyError::Header { 
+                        field: "shape", 
+                        error: "No ) in 'shape' field".into() 
+                    })?;
                 // 3, 4
                 let shape = &header_str[left_brace_index + 1..right_brace_index];
                 let shape: Vec<usize> = shape
@@ -272,9 +333,9 @@ impl DynamicNdArray {
         }
 
         // Check header
-        let descr = descr_opt.ok_or_else(|| Error::Msg(format!("Un descr infomtion")))?;
-        let _ = fortran_order_opt.ok_or_else(|| Error::Msg(format!("Un fortran_order infomtion")))?;
-        let shape = shape_opt.ok_or_else(|| Error::Msg(format!("Un shape infomtion")))?;
+        let descr = descr_opt.ok_or_else(|| NpyError::LackField { field: "descr" } )?;
+        let _ = fortran_order_opt.ok_or_else(|| NpyError::LackField { field: "fortran_order" } )?;
+        let shape = shape_opt.ok_or_else(|| NpyError::LackField { field: "shape" } )?;
         let shape: Shape = shape.into();
 
         match descr {
@@ -288,7 +349,7 @@ impl DynamicNdArray {
             "<f4" => read_ndarray::<f32, R>(reader, shape).map(DynamicNdArray::F32),
             "<f8" => read_ndarray::<f64, R>(reader, shape).map(DynamicNdArray::F64),
             "<u8" => read_ndarray::<usize, R>(reader, shape).map(DynamicNdArray::USize),
-            _ => crate::bail!("Unsupported dtype: {}", descr),
+            _ => Err(NpyError::UnsupportedDescr(descr.to_string()))?
         }
     }
 
@@ -308,7 +369,7 @@ fn dtype_to_descr(dtype: DType) -> Result<&'static str> {
         DType::I16 => Ok("<i2"),
         DType::U32 => Ok("<u4"),
         DType::I32 => Ok("<i4"),
-        DType::USize => crate::bail!("Numpy does't support usize dtype"),
+        DType::USize => Err(NpyError::UnsupportUSize)?,
         DType::F32 => Ok("<f4"),
         DType::F64 => Ok("<f8"),
     }

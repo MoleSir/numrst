@@ -22,9 +22,7 @@ impl<T: WithDType> Matrix<T> {
     }
 
     fn from_ndarray_impl(array: &NdArray<T>, axis1: usize, axis2: usize) -> Result<Self> {
-        if axis1 == axis2 {
-            return Err(Error::Msg("select same axis in matrix".into()));
-        }
+        assert!(axis1 != axis2);
         let layout = MatrixLayout {
             shape: (array.layout().dims()[axis1], array.layout().dims()[axis2]),
             strides: (array.layout().stride()[axis1], array.layout().stride()[axis2]),
@@ -80,15 +78,18 @@ impl MatrixLayout {
     }
 
     fn get_storage_index(&self, row: usize, col: usize) -> Result<usize> {
-        if row >= self.row_size() || col >= self.col_size() {
-            Err(Error::Msg("Matrix index out of range".into()))?
+        if row > self.row_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
         }
+        if col > self.col_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "col", len: self.col_size(), index: col });
+        } 
         Ok(self.start_offset + self.row_stride() * row + self.col_stride() * col)
     }
 
     fn get_row_vector_layout(&self, row: usize) -> Result<VectorLayout> {
         if row > self.row_size() {
-            return Err(Error::Msg("row index out of range".into()));
+            return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
         } else {
             Ok(VectorLayout {
                 len: self.col_size(),
@@ -100,7 +101,7 @@ impl MatrixLayout {
 
     fn get_col_vector_layout(&self, col: usize) -> Result<VectorLayout> {
         if col > self.col_size() {
-            return Err(Error::Msg("col index out of range".into()));
+            return Err(Error::MatrixIndexOutOfRange { position: "col", len: self.col_size(), index: col });
         } else {
             Ok(VectorLayout {
                 len: self.row_size(),

@@ -118,7 +118,7 @@ impl<T: NumDType> NdArray<T> {
     pub fn from_vec<S: Into<Shape>>(vec: Vec<T>, shape: S) -> Result<Self> {
         let shape: Shape = shape.into();
         if shape.element_count() != vec.len() {
-            return Err(Error::Msg(format!("shape' element_count {} != vec.len {}", shape.element_count(), vec.len())));
+            Err(Error::ElementSizeMismatch { expected: vec.len(), got: shape.element_count(), op: "from_vec" })?
         }
         let storage = Storage::new(vec);
         Ok(Self::from_storage(storage, shape))

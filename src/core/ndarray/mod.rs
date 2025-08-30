@@ -37,32 +37,36 @@ pub struct NdArrayImpl<T> {
 }
 
 impl<T: WithDType> NdArray<T> {
-    pub fn is_scaler(&self) -> bool {
-        self.shape().is_scaler()
+    pub fn is_scalar(&self) -> bool {
+        self.shape().is_scalar()
+    }
+
+    pub fn check_scalar(&self) -> Result<()> {
+        if !self.is_scalar() {
+            Err(Error::NotScalar)
+        } else {
+            Ok(())
+        }
     }
 
     pub fn to_scalar(&self) -> Result<T> {
-        if !self.is_scaler() {
-            Err(Error::Msg("not a scalar".into()))
-        } else {
-            let storage = self.0.storage.read().unwrap();
-            let data = storage.data();
-            let index = self.layout().start_offset();
-            let scalar = data[index];
-            Ok(scalar)
-        }
+        self.check_scalar()?;
+        
+        let storage = self.0.storage.read().unwrap();
+        let data = storage.data();
+        let index = self.layout().start_offset();
+        let scalar = data[index];
+        Ok(scalar)
     }
 
     pub fn set_scalar(&self, val: T) -> Result<()> {
-        if !self.is_scaler() {
-            Err(Error::Msg("not a scalar".into()))
-        } else {
-            let mut storage = self.0.storage.write().unwrap();
-            let data = storage.data_mut();
-            let index = self.layout().start_offset();
-            data[index] = val;
-            Ok(())
-        }
+        self.check_scalar()?;
+
+        let mut storage = self.0.storage.write().unwrap();
+        let data = storage.data_mut();
+        let index = self.layout().start_offset();
+        data[index] = val;
+        Ok(())
     }
 }
 

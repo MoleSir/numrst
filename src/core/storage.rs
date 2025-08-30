@@ -24,7 +24,7 @@ impl<T: WithDType + rand_distr::uniform::SampleUniform> Storage<T> {
     {
         let elem_count = shape.element_count();
         let mut rng = rng();
-        let uniform = Uniform::new(min, max).map_err(|e| Error::Msg(e.to_string()))?;
+        let uniform = Uniform::new(min, max).map_err(|e| Error::Rand(e.to_string()))?;
         let v: Vec<T> = (0..elem_count)
             .map(|_| uniform.sample(&mut rng))
             .collect();
@@ -39,7 +39,7 @@ impl<F: FloatDType> Storage<F> {
         StandardNormal: Distribution<F>,
     {
         let elem_count = shape.element_count();
-        let normal = rand_distr::Normal::new(mean, std).map_err(|e| Error::Msg(e.to_string()))?;
+        let normal = rand_distr::Normal::new(mean, std).map_err(|e| Error::Rand(e.to_string()))?;
         let mut rng = rng();
         let v: Vec<F> = (0..elem_count)
             .map(|_| normal.sample(&mut rng))

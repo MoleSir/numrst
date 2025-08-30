@@ -5,9 +5,12 @@ use super::NdArray;
 impl<T: WithDType> NdArray<T> {
     pub fn take<I: UnsignedIntDType>(&self, indices: &NdArray<I>) -> Result<NdArray<T>> {
         let self_storage = self.storage_ref(0);
+        let self_storage_len = self_storage.len();
+
         let mut vec = vec![];
         for index in indices.iter() {
-            let value = self_storage.get(index.to_usize()).ok_or_else(|| Error::Msg("Index out of range in take".into()))?;
+            let value = self_storage.get(index.to_usize())
+                .ok_or_else(|| Error::IndexOutOfRangeTake{ storage_len: self_storage_len, index: index.to_usize() })?;
             vec.push(value);
         }
         let storage = Storage::new(vec);

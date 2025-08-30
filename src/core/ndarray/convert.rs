@@ -1,4 +1,4 @@
-use crate::{DTypeConvert, Result, WithDType};
+use crate::{DTypeConvert, Error, Result, WithDType};
 use super::NdArray;
 
 impl<T: WithDType> NdArray<T> {
@@ -9,7 +9,7 @@ impl<T: WithDType> NdArray<T> {
 
     pub fn copy_from(&self, source: &Self) -> Result<()> {
         if self.shape() != source.shape() {
-            crate::bail!("Unmatch shape in copy_from");
+            Err(Error::ShapeMismatchCopyFrom { dst: self.shape().clone(), src: source.shape().clone() })?
         }
 
         let mut storage = self.storage_mut(0);

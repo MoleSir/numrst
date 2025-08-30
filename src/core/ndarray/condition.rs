@@ -5,7 +5,7 @@ impl<T: WithDType> NdArray<T> {
     pub fn filter(&self, conditions: &NdArray<bool>) -> Result<NdArray<T>> {
         // self should has the same shape the condition
         if self.dims() != conditions.dims() {
-            return Err(Error::Msg("shape unmatch in select".into()));
+            return Err(Error::ShapeMismatchFilter { src: self.shape().clone(), condition: conditions.shape().clone() });
         }
         
         let vec: Vec<_> = self.iter().zip(conditions.iter())
@@ -24,11 +24,11 @@ impl<T: WithDType> NdArray<T> {
         FV: ConditionValue<T>,
     {
         if !true_val.check_shape(mask.shape()) {
-            crate::bail!("unmatch shape between mask and true_val")
+            Err(Error::ShapeMismatchSelect { mask: mask.shape().clone(), who: "true_val", })?
         }
 
         if !false_val.check_shape(mask.shape()) {
-            crate::bail!("unmatch shape between mask and false_val")
+            Err(Error::ShapeMismatchSelect { mask: mask.shape().clone(), who: "false_val", })?
         }
 
         let result = true_val.copy_self(mask.shape())?;

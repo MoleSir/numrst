@@ -1,7 +1,7 @@
 use std::str::Utf8Error;
+use zip::result::ZipError;
 
-use crate::{DType, Range, Shape};
-
+use crate::{io::{NpyError, NrstError}, DType, Range, Shape};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -24,6 +24,12 @@ pub enum Error {
     UnsupportedDTypeForOp(DType, &'static str),
 
     // === Dimension Index Errors ===
+    #[error("Index '{index}' out of range at storage({storage_len}) in take method")]
+    IndexOutOfRangeTake {
+        storage_len: usize,
+        index: usize,
+    },
+
     #[error("{op}: dimension index {dim} out of range for shape {shape:?}")]
     DimOutOfRange {
         shape: Shape,
@@ -39,6 +45,13 @@ pub enum Error {
     },
 
     // === Shape Errors ===
+    #[error("unexpected element size in {op}, expected: {expected}, got: {got}")]
+    ElementSizeMismatch {
+        expected: usize,
+        got: usize,
+        op: &'static str
+    },
+
     #[error("unexpected rank, expected: {expected}, got: {got} ({shape:?})")]
     UnexpectedNumberOfDims {
         expected: usize,
@@ -52,11 +65,6 @@ pub enum Error {
         expected: Shape,
         got: Shape,
     },
-
-    #[error(
-        "Shape mismatch, got buffer of size {buffer_size} which is compatible with shape {shape:?}"
-    )]
-    ShapeMismatch { buffer_size: usize, shape: Shape },
 
     #[error("shape mismatch in {op}, lhs: {lhs:?}, rhs: {rhs:?}")]
     ShapeMismatchBinaryOp {
@@ -73,18 +81,23 @@ pub enum Error {
         nth_shape: Shape,
     },
 
-    #[error("Cannot divide tensor of shape {shape:?} equally along dim {dim} into {n_parts}")]
-    ShapeMismatchSplit {
-        shape: Shape,
-        dim: usize,
-        n_parts: usize,
+    #[error("source ndarray shape {src:?} mismatch with condition shape {condition:?}")]
+    ShapeMismatchFilter {
+        src: Shape,
+        condition: Shape, 
     },
 
-    #[error("{op} can only be performed on a single dimension")]
-    OnlySingleDimension { op: &'static str, dims: Vec<usize> },
+    #[error("mask ndarray shape {mask:?} mismatch with {who} shape")]
+    ShapeMismatchSelect {
+        mask: Shape,
+        who: &'static str,
+    },
 
-    #[error("empty tensor for {op}")]
-    EmptyTensor { op: &'static str },
+    #[error("dst ndarray shape {dst:?} mismatch with src ndarray {src} shape")]
+    ShapeMismatchCopyFrom {
+        dst: Shape,
+        src: Shape,
+    },
 
     // === Op Specific Errors ===
     #[error("narrow range invalid args {msg}: {shape:?}, dim: {dim}, range: {range}")]
@@ -110,41 +123,44 @@ pub enum Error {
         dim: usize,
     },
 
-    #[error("{op} invalid index {index} with dim size {size}")]
-    InvalidIndex {
-        op: &'static str,
-        index: usize,
-        size: usize,
-    },
-
     #[error("cannot broadcast {src_shape:?} to {dst_shape:?}")]
     BroadcastIncompatibleShapes { src_shape: Shape, dst_shape: Shape },
 
-    #[error("cannot set variable {msg}")]
-    CannotSetVar { msg: &'static str },
-
-    // Box indirection to avoid large variant.
-    #[error("{op} only supports contiguous tensors")]
-    RequiresContiguous { op: &'static str },
-
     #[error("{op} expects at least one tensor")]
-    OpRequiresAtLeastOneTensor { op: &'static str },
+    OpRequiresAtLeastOneNdArray { op: &'static str },
 
-    #[error("{op} expects at least two tensors")]
-    OpRequiresAtLeastTwoTensors { op: &'static str },
+    #[error("rand error because {0}")]
+    Rand(String),
 
-    #[error("backward is not supported for {op}")]
-    BackwardNotSupported { op: &'static str },
+    #[error("ndarray is not a scalar")]
+    NotScalar,
 
-    // === Other Errors ===
-    #[error("the candle crate has not been built with cuda support")]
-    NotCompiledWithCudaSupport,
+    // === View ===
+    #[error("len mismatch with lhs {lhs} and rhs {rhs}")]
+    LenMismatchVectorDot {
+        lhs: usize,
+        rhs: usize,
+    },
 
-    #[error("the candle crate has not been built with metal support")]
-    NotCompiledWithMetalSupport,
+    #[error("index {index} of out range in {len} len vector")]
+    VectorIndexOotOfRange {
+        len: usize,
+        index: usize,
+    },
 
-    #[error("cannot find tensor {path}")]
-    CannotFindTensor { path: String },
+    #[error("{position} index {index} of out range in {len} len matrix")]
+    MatrixIndexOutOfRange {
+        len: usize,
+        index: usize,
+        position: &'static str,
+    },
+
+    // === Transparent Errors ===
+    #[error(transparent)]
+    Npy(#[from] NpyError),
+
+    #[error(transparent)]
+    Nrst(#[from] NrstError),
 
     /// Integer parse error.
     #[error(transparent)]
@@ -161,6 +177,10 @@ pub enum Error {
     #[error(transparent)]
     Utf8(#[from] Utf8Error),
 
+    #[error(transparent)]
+    Zip(#[from] ZipError),
+
+    // === Utils ===
     #[error("{context}\n{inner}")]
     Context {
         inner: Box<Self>,

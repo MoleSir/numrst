@@ -12,6 +12,10 @@ pub struct Vector<T: WithDType> {
     pub(crate) layout: VectorLayout,
 }
 
+pub struct VectorError {
+    
+}
+
 impl<T: WithDType> Vector<T> {
     pub fn from_ndarray(array: &NdArray<T>) -> Result<Self> {
         let _ = array.dims1()?;
@@ -63,7 +67,7 @@ impl<T: WithDType> Vector<T> {
 impl<T: NumDType> Vector<T> {
     pub fn dot(&self, rhs: &Self) -> Result<T> {
         if self.len() != rhs.len() {
-            return Err(Error::Msg("dot with diff len vector".into()));
+            return Err(Error::LenMismatchVectorDot { lhs: self.len(), rhs: rhs.len() });
         }
         let sum = self.iter().zip(rhs.iter()).map(|(a, b)| a * b).sum::<T>();
         Ok(sum)
@@ -102,7 +106,7 @@ impl<'a, T: WithDType> Iterator for VectorIter<'a, T> {
 impl VectorLayout {
     pub fn get_storage_index(&self, index: usize) -> Result<usize> {
         if index >= self.len {
-            Err(Error::Msg("Vector index out of range".into()))?
+            Err(Error::VectorIndexOotOfRange { len: self.len, index })?
         }
         Ok(self.start_offset + self.stride * index)
     }
