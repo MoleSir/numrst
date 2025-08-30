@@ -110,6 +110,9 @@ impl<T: WithDType> NdArray<T> {
 
     /// Returns a new tensor that is a narrowed version of the input, the dimension `dim`
     /// ranges from `start` to `start : end : step`.
+    /// 
+    /// TODO: set `range` to a trait param
+    /// 
     /// ```
     /// use numrst::{NdArray, DType, rng, Range};
     /// let a = NdArray::<i32>::zeros((5, 5, 5)).unwrap();

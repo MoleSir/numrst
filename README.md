@@ -1,75 +1,91 @@
 # NumRst
 
-NumRst is the fundamental package for scientific computing with Rust.
+NumRst is a Rust implementation of multi-dimensional arrays (NdArray) and numerical computation, inspired by NumPy.  
+
+It provides a rich set of numerical operations, including broadcasting, indexing, matrix operations, reductions, logical and comparison ops, aiming to build a high-performance numerical computing tool in the Rust ecosystem.
 
 
 
-## Features
+## 🚀Features
 
-- [x] create `NdArray` method
-- [x] basic binary and unary op
-- [x] matmul 
-- [x] index op like numpy
-- [x] reduce op 
-- [x] simple display 
-- [x] `Matrix` and `Vector` view
-- [x] io with .npy & .nrst
+- Data types supported:  `Bool, U8, I8, U16, I16, U32, I32, USize, F32, F64`
+  
+- Operators & Arithmetic:
+  - Basic ops: `+ -  / minimum maximum`
+  - Comparison: `eq ne lt le gt ge`
+  - Logic: `and or xor`
+  - Float functions: `exp sin cos sqrt tanh floor ceil round abs neg ln`
+
+- NdArray operations:
+  - Shape manipulation: `reshape`, `transpose`, `squeeze`, `unsqueeze`, `narrow`, `narrow_range`
+  - Concatenation/stacking: `cat`, `stack`
+
+- Broadcasting:  NumPy-like broadcasting (`broadcast_add`, `broadcast_sub`, etc.)
+  
+- Reductions:
+  - Global: `sum`, `product`, `min`, `max`, `mean`, `var`, `std`
+  - Along axis: `sum_axis`, `max_axis`, `argmax_axis`, etc.
+
+- Array creation:
+  - `zeros`, `ones`, `arange`, `rand`, `randn`, `trues`, `falses`
+  - `from_vec`, `fill`, `new`
+
+- Indexing & slicing:
+  - Single index: `arr.index(2)?`
+  - Range: `arr.index(rng!(1:3))?`
+  - Mixed multi-dim: `arr.index((rng!(1:3), .., 1..2))?`
+
+- Matrix operations:
+  - `matmul`
 
 
 
-## Examples
+## 📦 Installation
 
-Create `NdArray`
+Add this to your `Cargo.toml`:
 
-```rust
-  let arr = NdArray::new(1)?;
-  let arr = NdArray::new(&[1.0f32, 2., 3.])?;
-  let arr = NdArray::new(&[[1, 2, 3], [3, 4, 5]])?;
-  let arr = NdArray::<f32>::ones(1)?;
-  let arr = NdArray::randn(0.0f64, 1., (1, 2, 3))?;
-  let arr = NdArray::fill((2, 3, 4), 1.2)?;
-  let arr = NdArray::fill((10, 4, 4), 100u32)?;
-  let arr = NdArray::arange(0., 10.)?;
-  let ts = NdArray::trues((3, 4))?;
-```
-
-Some basic op
-
-```rust
-  let a = NdArray::new(&[1.0f32, 2., 3.])?;
-  let b = NdArray::new(&[1.0f32, 2., 3.])?;
-  let c = a.add(&b)?;
-  let c = a.sub(&b)?;
-
-  let a = NdArray::new(&[[1, 2, 3], [4, 5, 6]])?;
-  let sum = a.sum_axis(1)?;
-
-  let a = NdArray::<f32>::randn(0., 1., (4, 4, 5))?;
-  let b = NdArray::<f32>::randn(0., 1., (4, 5, 3))?;
-  let c = a.matmul(&b)?;
-```
-
-Usefull index op like NumPy
-
-```rust
-let arr = NdArray::zeros((5, 5, 5), DType::U32)?;
-
-let sub_arr = arr.index(1)?;
-let sub_arr = arr.index(2)?;
-let sub_arr = arr.index(rng!(1:3))?;
-let sub_arr = arr.index((rng!(1:3), rng!(3:4), 1))?;
-let sub_arr = arr.index((rng!(1:3), .., 1..2))?;
+```toml
+[dependencies]
+numrst = { git = "https://github.com/MoleSir/numrst" }
 ```
 
 
 
-## LICENSE
+## Quick Start
+
+```rust
+use numrst::prelude::;
+
+fn main() -> Result<()> {
+    // Create a 5x5x5 zero array
+    let arr = NdArray::<u32>::zeros((5, 5, 5))?;
+
+    // Basic arithmetic
+    let b = NdArray::<u32>::ones((5, 5, 5))?;
+    let c = arr.add(&b)?;
+    
+    // Indexing and slicing
+    let sub_arr = c.index((rng!(1:3), .., 2))?;
+    
+    // Matrix multiplication
+    let m1 = NdArray::<f32>::rand(0.0, 1.0, (3, 4))?;
+    let m2 = NdArray::<f32>::rand(0.0, 1.0, (4, 5))?;
+    let m3 = m1.matmul(&m2)?;
+    
+    println!("Result shape: {:?}", m3.shape());
+    Ok(())
+}
+```
+
+
+
+## License
 
 MIT
 
 
 
-## References
+## Reference
 
 - https://github.com/numpy/numpy
 - https://github.com/huggingface/candle
