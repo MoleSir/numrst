@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Dim, Error, Layout, Result, Shape, WithDType};
+use crate::{Dim, Error, Layout, Result, Shape, Storage, WithDType};
 
 use super::{NdArray, NdArrayId, NdArrayImpl, Range};
 
@@ -208,4 +208,235 @@ impl<T: WithDType> NdArray<T> {
         };
         Ok(NdArray(Arc::new(tensor_)))
     }
+
+    pub fn cat<D: Dim>(arrs: &[Self], dim: D) -> Result<Self> {
+        // check shape
+        if arrs.is_empty() {
+            Err(Error::OpRequiresAtLeastOneTensor { op: "cat" })?
+        }
+    
+        // first arr's infomation
+        let arr0 = &arrs[0];
+        let rank0 = arr0.rank();
+
+        // cat_dim must be valid!
+        let cat_dim = dim.to_index(arr0.shape(), "cat")?;
+        let mut target_dims = arr0.dims().to_vec();
+        target_dims[cat_dim] = 0;
+        let mut dim_offsets = vec![];
+
+        for (_arr_index, arr) in arrs.iter().enumerate() {
+            // check shape 
+            let rank = arr.rank();
+            if rank != rank0 {
+                Err(Error::UnexpectedNumberOfDims {
+                    expected: rank,
+                    got: arr.rank(),
+                    shape: arr.shape().clone(),
+                })?
+            }
+
+            // zip arr0's dims and arr's dims
+            for (dim_index, (v1, v2)) in arr0.dims().iter()
+                                                                    .zip(arr.dims().iter())
+                                                                    .enumerate()
+            {
+                // accumalte the cat dim
+                if dim_index == cat_dim {
+                    dim_offsets.push(target_dims[cat_dim]);
+                    target_dims[cat_dim] += v2;
+                }
+
+                // all other dims should be same
+                if dim_index != cat_dim && v1 != v2 {
+                    Err(Error::ShapeMismatchCat {
+                        dim: dim_index,
+                        first_shape: arr0.shape().clone(),
+                        n: dim_index + 1,
+                        nth_shape: arr0.shape().clone(),
+                    })?
+                }
+            }
+        }
+        
+        // Now, all arr in arrs has same rank, and except `cat_dim`, all dims are equal
+        // [ (a, n1, b, c), (a, n2, b, c), ... , (a, nk, b, c).... ]
+        // target_dims = (a, n1+n2+...+nk, b, c)
+
+        let target_shape: Shape = target_dims.into();
+        
+        // Create a new storgae and copy
+        let mut dst: Vec<T> = Vec::with_capacity(target_shape.element_count());
+        unsafe { dst.set_len(target_shape.element_count()) };
+        let res_arr = Self::from_storage(Storage::new(dst), target_shape);
+
+        for (arr_index, arr) in arrs.iter().enumerate() {
+            // Take sub ndarray 
+            let sub_res_arr = res_arr.narrow(cat_dim, dim_offsets[arr_index], arr.dims()[cat_dim])?;
+            assert_eq!(sub_res_arr.shape(), arr.shape());
+            sub_res_arr.copy_from(arr)?;
+        }
+
+        Ok(res_arr)
+    }
+
+    pub fn stack<D: Dim>(args: &[Self], dim: D) -> Result<Self> {
+        if args.is_empty() {
+            Err(Error::OpRequiresAtLeastOneTensor { op: "stack" })?
+        }
+        let dim = dim.to_index_plus_one(args[0].shape(), "stack")?;
+        let args = args
+            .iter()
+            .map(|t| t.unsqueeze(dim))
+            .collect::<Result<Vec<_>>>()?;
+        Self::cat(&args, dim)
+    }
+}
+
+
+#[cfg(test)]
+#[allow(unused)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_cat_1d() -> Result<()> {
+        let a = NdArray::new(&[1, 2, 3])?;
+        let b = NdArray::new(&[4, 5, 6])?;
+    
+        let c = NdArray::cat(&[a, b], 0)?;
+        assert_eq!(c.dims(), [6]);
+        assert_eq!(c.to_vec(), [1, 2, 3, 4, 5, 6]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_cat_2d_axis0() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = NdArray::new(&[[5, 6]])?;
+    
+        let c = NdArray::cat(&[a, b], 0)?;
+        assert_eq!(c.dims(), [3, 2]);
+        assert_eq!(c.to_vec(), [1, 2, 3, 4, 5, 6]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_cat_2d_axis1() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = NdArray::new(&[[5], [6]])?;
+    
+        let c = NdArray::cat(&[a, b], 1)?;
+        assert_eq!(c.dims(), [2, 3]);
+        assert_eq!(c.to_vec(), [1, 2, 5, 3, 4, 6]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_cat_3d() -> Result<()> {
+        let a = NdArray::fill((2, 2, 2), 1)?;
+        let b = NdArray::fill((2, 2, 2), 2)?;
+    
+        let c = NdArray::cat(&[a, b], 0)?;
+        assert_eq!(c.dims(), [4, 2, 2]);
+    
+        let c2 = NdArray::cat(&[c.clone(), c.clone()], 1)?;
+        assert_eq!(c2.dims(), [4, 4, 2]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_cat_shape_mismatch() {
+        let a = NdArray::new(&[1, 2, 3]).unwrap();
+        let b = NdArray::new(&[[1, 2], [3, 4]]).unwrap();
+    
+        let res = NdArray::cat(&[a, b], 0);
+        assert!(res.is_err());
+    }
+    
+    #[test]
+    fn test_cat_bool() -> Result<()> {
+        let a = NdArray::new(&[[true, false]])?;
+        let b = NdArray::new(&[[false, true]])?;
+    
+        let c = NdArray::cat(&[a, b], 0)?;
+        assert_eq!(c.dims(), [2, 2]);
+        assert_eq!(c.to_vec(), [true, false, false, true]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_1d_axis0() -> Result<()> {
+        let a = NdArray::new(&[1, 2, 3])?;
+        let b = NdArray::new(&[4, 5, 6])?;
+    
+        let c = NdArray::stack(&[a, b], 0)?;
+        assert_eq!(c.dims(), [2, 3]); 
+        assert_eq!(c.to_vec(), [1, 2, 3, 4, 5, 6]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_1d_axis1() -> Result<()> {
+        let a = NdArray::new(&[1, 2, 3])?;
+        let b = NdArray::new(&[4, 5, 6])?;
+    
+        let c = NdArray::stack(&[a, b], 1)?;
+        assert_eq!(c.dims(), [3, 2]);
+        assert_eq!(c.to_vec(), [1, 4, 2, 5, 3, 6]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_2d_axis0() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = NdArray::new(&[[5, 6], [7, 8]])?;
+    
+        let c = NdArray::stack(&[a, b], 0)?;
+        assert_eq!(c.dims(), [2, 2, 2]);
+        assert_eq!(c.to_vec(), [1, 2, 3, 4, 5, 6, 7, 8]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_2d_axis1() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = NdArray::new(&[[5, 6], [7, 8]])?;
+    
+        let c = NdArray::stack(&[a, b], 1)?;
+        assert_eq!(c.dims(), [2, 2, 2]);
+        assert_eq!(c.to_vec(), [1, 2, 5, 6, 3, 4, 7, 8]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_2d_axis2() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = NdArray::new(&[[5, 6], [7, 8]])?;
+    
+        let c = NdArray::stack(&[a, b], 2)?;
+        assert_eq!(c.dims(), [2, 2, 2]);
+        assert_eq!(c.to_vec(), [1, 5, 2, 6, 3, 7, 4, 8]);
+    
+        Ok(())
+    }
+    
+    #[test]
+    fn test_stack_shape_mismatch() {
+        let a = NdArray::new(&[1, 2, 3]).unwrap();
+        let b = NdArray::new(&[4, 5]).unwrap();
+    
+        let res = NdArray::stack(&[a, b], 0);
+        assert!(res.is_err());
+    }
+    
 }

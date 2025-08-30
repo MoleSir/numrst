@@ -8,6 +8,7 @@ mod matmul;
 mod reduce;
 mod broadcast;
 mod convert;
+mod condition;
 
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};

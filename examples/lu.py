@@ -26,4 +26,3 @@ print("U:\n", U)
 
 # 验证
 print(np.allclose(A, L @ U))
-

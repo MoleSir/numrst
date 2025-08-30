@@ -1,10 +1,23 @@
-use crate::{DTypeConvert, WithDType};
+use crate::{DTypeConvert, Result, WithDType};
 use super::NdArray;
 
 impl<T: WithDType> NdArray<T> {
     pub fn copy(&self) -> Self {
         let storage = self.storage().copy(self.layout());
         Self::from_storage(storage, self.shape())
+    }
+
+    pub fn copy_from(&self, source: &Self) -> Result<()> {
+        if self.shape() != source.shape() {
+            crate::bail!("Unmatch shape in copy_from");
+        }
+
+        let mut storage = self.storage_mut(0);
+        for (self_storage_index, src_value) in self.layout().to_index().zip(source.iter()) {
+            storage.set_unchecked(self_storage_index, src_value);
+        }
+
+        Ok(())
     }
 }
 

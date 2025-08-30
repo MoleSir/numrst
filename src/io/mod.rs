@@ -8,6 +8,7 @@ use crate::{DType, NdArray, Result};
 
 #[derive(Clone)]
 pub enum DynamicNdArray {
+    U8(NdArray<u8>),
     Bool(NdArray<bool>),
     U32(NdArray<u32>),
     I32(NdArray<i32>),
@@ -20,6 +21,7 @@ impl DynamicNdArray {
     pub fn dtype(&self) -> DType {
         match self {
             Self::Bool(_) => DType::Bool,
+            Self::U8(_) => DType::U8,
             Self::U32(_) => DType::U32,
             Self::I32(_) => DType::I32,
             Self::USize(_) => DType::USize,
@@ -78,9 +80,23 @@ impl DynamicNdArray {
 }
 
 impl DynamicNdArray {
+    pub fn to_u8(self) -> NdArray<u8> {
+        match self {
+            Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr,
+            Self::U32(arr) => arr.to_dtype(),
+            Self::F32(arr) => arr.to_dtype(),
+            Self::F64(arr) => arr.to_dtype(),
+            Self::USize(arr) => arr.to_dtype(),
+            Self::Bool(arr) => arr.to_dtype(),
+        }
+    }
+
+
     pub fn to_u32(self) -> NdArray<u32> {
         match self {
             Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr,
             Self::F32(arr) => arr.to_dtype(),
             Self::F64(arr) => arr.to_dtype(),
@@ -92,6 +108,7 @@ impl DynamicNdArray {
     pub fn to_i32(self) -> NdArray<i32> {
         match self {
             Self::I32(arr) => arr,
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr.to_dtype(),
             Self::F32(arr) => arr.to_dtype(),
             Self::F64(arr) => arr.to_dtype(),
@@ -103,6 +120,7 @@ impl DynamicNdArray {
     pub fn to_usize(self) -> NdArray<usize> {
         match self {
             Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr.to_dtype(),
             Self::F32(arr) => arr.to_dtype(),
             Self::F64(arr) => arr.to_dtype(),
@@ -114,6 +132,7 @@ impl DynamicNdArray {
     pub fn to_f32(self) -> NdArray<f32> {
         match self {
             Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr.to_dtype(),
             Self::F32(arr) => arr,
             Self::F64(arr) => arr.to_dtype(),
@@ -125,6 +144,7 @@ impl DynamicNdArray {
     pub fn to_f64(self) -> NdArray<f64> {
         match self {
             Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr.to_dtype(),
             Self::F32(arr) => arr.to_dtype(),
             Self::F64(arr) => arr,
@@ -136,6 +156,7 @@ impl DynamicNdArray {
     pub fn to_bool(self) -> NdArray<bool> {
         match self {
             Self::I32(arr) => arr.to_dtype(),
+            Self::U8(arr) => arr.to_dtype(),
             Self::U32(arr) => arr.to_dtype(),
             Self::F32(arr) => arr.to_dtype(),
             Self::F64(arr) => arr.to_dtype(),

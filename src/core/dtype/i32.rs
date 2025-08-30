@@ -54,6 +54,7 @@ impl SignedIntDType for i32 {
     }
 }
 
+impl DTypeConvert<u8> for i32 { fn convert(self) -> u8 { self as u8 } }
 impl DTypeConvert<i32> for i32 { fn convert(self) -> i32 { self } }
 impl DTypeConvert<u32> for i32 { fn convert(self) -> u32 { self as u32 } }
 impl DTypeConvert<usize> for i32 { fn convert(self) -> usize { self as usize } }

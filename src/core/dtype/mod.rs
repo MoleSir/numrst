@@ -4,12 +4,15 @@ mod u32;
 mod usize;
 mod i32;
 mod bool;
+mod u8;
+
 use crate::Result;
 use super::Storage;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DType {
     Bool,  // boolean
+    U8,    // unsigned 8-bit
     I32,   // signed 32-bit
     U32,   // unsigned 32-bit
     USize, // unsigned size
@@ -21,6 +24,7 @@ impl DType {
     pub fn size_of(&self) -> usize {
         match self {
             DType::Bool => std::mem::size_of::<bool>(),
+            DType::U8 => std::mem::size_of::<u8>(),
             DType::I32 => std::mem::size_of::<i32>(),
             DType::U32 => std::mem::size_of::<u32>(),
             DType::USize => std::mem::size_of::<usize>(),
@@ -42,6 +46,7 @@ impl std::fmt::Display for DType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Bool => write!(f, "boolean"),
+            Self::U8   => write!(f, "8-bit unsigned"),
             Self::I32 => write!(f, "32-bit signed"),
             Self::U32 => write!(f, "32-bit unsigned"),
             Self::USize => write!(f, "unsigned size"),

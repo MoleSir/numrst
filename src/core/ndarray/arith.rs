@@ -191,6 +191,20 @@ impl<T: NumDType> NdArray<T> {
     } 
 }
 
+impl NdArray<bool> {
+    pub fn and(&self, rhs: impl NdArrayBinaryOpRhs<bool>) -> Result<NdArray<bool>> {
+        NdArrayBinaryOpRhs::<bool>::op(self, rhs, |a, b| a & b, "and")
+    }
+
+    pub fn or(&self, rhs: impl NdArrayBinaryOpRhs<bool>) -> Result<NdArray<bool>> {
+        NdArrayBinaryOpRhs::<bool>::op(self, rhs, |a, b| a | b, "or")
+    }
+
+    pub fn xor(&self, rhs: impl NdArrayBinaryOpRhs<bool>) -> Result<NdArray<bool>> {
+        NdArrayBinaryOpRhs::<bool>::op(self, rhs, |a, b| a ^ b, "xor")
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 ///        Unary Op / Unary Assign Op  for NdArray
 //////////////////////////////////////////////////////////////////////////////

@@ -3,22 +3,6 @@ use crate::{Error, Result, Storage, UnsignedIntDType, WithDType};
 use super::NdArray;
 
 impl<T: WithDType> NdArray<T> {
-    pub fn select(&self, conditions: &NdArray<bool>) -> Result<NdArray<T>> {
-        // self should has the same shape the condition
-        if self.dims() != conditions.dims() {
-            return Err(Error::Msg("shape unmatch in select".into()));
-        }
-        
-        let vec: Vec<_> = self.iter().zip(conditions.iter())
-            .filter(|(_, condition)| *condition)
-            .map(|(value, _)| value)
-            .collect();
-        let shape = vec.len();
-
-        let storage = Storage::new(vec);
-        Ok(Self::from_storage(storage, shape))
-    }
-
     pub fn take<I: UnsignedIntDType>(&self, indices: &NdArray<I>) -> Result<NdArray<T>> {
         let self_storage = self.storage_ref(0);
         let mut vec = vec![];
@@ -29,10 +13,7 @@ impl<T: WithDType> NdArray<T> {
         let storage = Storage::new(vec);
         Ok(Self::from_storage(storage, indices.shape()))
     }
-}
 
-
-impl<T: WithDType> NdArray<T> {
     fn indexes(&self, indexers: &[Indexer]) -> Result<Self> {
         let mut x = self.clone();
         let mut current_dim = 0;
@@ -323,45 +304,6 @@ mod test {
 
         let expected = arr.index((rng!(1:3), rng!(0:5), rng!(1:2))).unwrap();
         assert!(sub.allclose(&expected, 0.0, 0.0));
-    }
-
-
-    #[test]
-    fn test_select_basic() {
-        let a = NdArray::new(&[10, 20, 30, 40, 50]).unwrap();
-        let mask = NdArray::new(&[false, true, false, true, true]).unwrap();
-
-        let result = a.select(&mask).unwrap();
-        assert_eq!(result.to_vec(), [20, 40, 50]);
-    }
-
-    #[test]
-    fn test_select_all_false() {
-        let a = NdArray::new(&[1, 2, 3]).unwrap();
-        let mask = NdArray::new(&[false, false, false]).unwrap();
-
-        let result = a.select(&mask).unwrap();
-        assert!(result.to_vec().is_empty());
-    }
-
-    #[test]
-    fn test_select_shape_mismatch() {
-        let a = NdArray::new(&[1, 2, 3, 4]).unwrap();
-        let mask = NdArray::new(&[true, false]).unwrap(); // 形状不匹配
-
-        let result = a.select(&mask);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_select_2d_flatten_order() {
-        let a = NdArray::new(&[[1, 2, 3],
-                               [4, 5, 6]]).unwrap();
-        let mask = NdArray::new(&[[true,  false, true],
-                                  [false, true,  false]]).unwrap();
-
-        let result = a.select(&mask).unwrap();
-        assert_eq!(result.to_vec(), [1, 3, 5]);
     }
 
     #[test]

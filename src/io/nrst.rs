@@ -130,6 +130,7 @@ impl DynamicNdArray {
 
         match dtype {
             DType::Bool => read_bool_ndarray(reader, shape).map(DynamicNdArray::Bool),
+            DType::U8 => read_ndarray::<u8, R>(reader, shape).map(DynamicNdArray::U8),
             DType::I32 => read_ndarray::<i32, R>(reader, shape).map(DynamicNdArray::I32),
             DType::U32 => read_ndarray::<u32, R>(reader, shape).map(DynamicNdArray::U32),
             DType::USize => read_ndarray::<usize, R>(reader, shape).map(DynamicNdArray::USize),
@@ -142,6 +143,7 @@ impl DynamicNdArray {
     pub fn save_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_file(path),
+            DynamicNdArray::U8(arr) => arr.save_file(path),
             DynamicNdArray::I32(arr) => arr.save_file(path),
             DynamicNdArray::U32(arr) => arr.save_file(path),
             DynamicNdArray::USize(arr) => arr.save_file(path),
@@ -153,6 +155,7 @@ impl DynamicNdArray {
     pub fn save_writer<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_writer(writer),
+            DynamicNdArray::U8(arr) => arr.save_writer(writer),
             DynamicNdArray::I32(arr) => arr.save_writer(writer),
             DynamicNdArray::U32(arr) => arr.save_writer(writer),
             DynamicNdArray::USize(arr) => arr.save_writer(writer),
@@ -199,6 +202,7 @@ impl<T: WithDType + bytemuck::NoUninit> NdArray<T> {
 fn encode_dtype(dtype: DType) -> u8 {
     match dtype {
         DType::Bool      => 1,
+        DType::U8        => 2,
         DType::U32       => 6,
         DType::I32       => 7,
         DType::F32       => 11,
@@ -210,6 +214,7 @@ fn encode_dtype(dtype: DType) -> u8 {
 fn decode_dtype(code: u8) -> Result<DType> {
     match code {
         1  => Ok(DType::Bool),
+        2  => Ok(DType::U8),
         6  => Ok(DType::U32),
         7  => Ok(DType::I32),
         11 => Ok(DType::F32),

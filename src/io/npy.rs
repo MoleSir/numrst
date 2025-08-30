@@ -101,6 +101,7 @@ impl DynamicNdArray {
     pub fn save_npy_file<P: AsRef<std::path::Path>>(&self, path: P) -> Result<()> {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_npy_file(path),
+            DynamicNdArray::U8(arr) => arr.save_npy_file(path),
             DynamicNdArray::I32(arr) => arr.save_npy_file(path),
             DynamicNdArray::U32(arr) => arr.save_npy_file(path),
             DynamicNdArray::USize(arr) => arr.save_npy_file(path),
@@ -112,6 +113,7 @@ impl DynamicNdArray {
     pub fn save_npy_writer<W: Write>(&self, writer: &mut W) -> Result<()> {
         match self {
             DynamicNdArray::Bool(arr) => arr.save_npy_writer(writer),
+            DynamicNdArray::U8(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::I32(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::U32(arr) => arr.save_npy_writer(writer),
             DynamicNdArray::USize(arr) => arr.save_npy_writer(writer),
@@ -290,6 +292,7 @@ impl DynamicNdArray {
 fn dtype_to_descr(dtype: DType) -> Result<&'static str> {
     match dtype {
         DType::Bool => Ok("|b1"),
+        DType::U8 => Ok("<u1"),
         DType::U32 => Ok("<u4"),
         DType::I32 => Ok("<i4"),
         DType::USize => crate::bail!("Numpy does't support usize dtype"),

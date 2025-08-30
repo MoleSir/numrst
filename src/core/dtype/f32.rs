@@ -52,6 +52,7 @@ impl NumDType for f32 {
 
 impl FloatDType for f32 {}
 
+impl DTypeConvert<u8> for f32 { fn convert(self) -> u8 { self as u8 } }
 impl DTypeConvert<i32> for f32 { fn convert(self) -> i32 { self as i32 } }
 impl DTypeConvert<u32> for f32 { fn convert(self) -> u32 { self as u32 } }
 impl DTypeConvert<usize> for f32 { fn convert(self) -> usize { self as usize } }

@@ -46,6 +46,7 @@ impl NumDType for usize {
 impl IntDType for usize {}
 impl UnsignedIntDType for usize {}
 
+impl DTypeConvert<u8> for usize { fn convert(self) -> u8 { self as u8 } }
 impl DTypeConvert<i32> for usize { fn convert(self) -> i32 { self as i32 } }
 impl DTypeConvert<u32> for usize { fn convert(self) -> u32 { self as u32 } }
 impl DTypeConvert<usize> for usize { fn convert(self) -> usize { self } }

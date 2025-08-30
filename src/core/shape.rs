@@ -283,7 +283,7 @@ impl Dim for usize {
 
     fn to_index_plus_one(&self, shape: &Shape, op: &'static str) -> Result<usize> {
         let dim = *self;
-        if dim >= shape.rank() {
+        if dim > shape.rank() {
             Err(Error::DimOutOfRange {
                 shape: shape.clone(),
                 dim: dim as i32,
