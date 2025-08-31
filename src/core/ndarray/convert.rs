@@ -13,7 +13,7 @@ impl<T: WithDType> NdArray<T> {
         }
 
         let mut storage = self.storage_mut(0);
-        for (self_storage_index, src_value) in self.layout().to_index().zip(source.iter()) {
+        for (self_storage_index, src_value) in self.layout().storage_indices().zip(source.iter()) {
             storage.set_unchecked(self_storage_index, src_value);
         }
 
@@ -32,7 +32,7 @@ pub trait AssignToNdArray<T: WithDType> {
 impl<T: WithDType> AssignToNdArray<T> for T {
     fn assign_to(src: T, dst: &NdArray<T>) -> Result<()> {
         let mut storage = dst.storage_mut(0);
-        for storage_index in dst.layout().to_index() {
+        for storage_index in dst.layout().storage_indices() {
             storage.set_unchecked(storage_index, src);
         }
 
@@ -48,7 +48,7 @@ impl<T: WithDType> AssignToNdArray<T> for &NdArray<T> {
 
         let mut storage = dst.storage_mut(0);
 
-        for (self_storage_index, src_value) in dst.layout().to_index().zip(src.iter()) {
+        for (self_storage_index, src_value) in dst.layout().storage_indices().zip(src.iter()) {
             storage.set_unchecked(self_storage_index, src_value);
         }
 

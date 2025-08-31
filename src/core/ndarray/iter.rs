@@ -1,9 +1,9 @@
-use crate::{LayoutIndex, WithDType};
+use crate::{StorageIndices, WithDType};
 
 use super::NdArray;
 
 pub struct NdArrayIter<'a, T> {
-    indexes: LayoutIndex<'a>,
+    indexes: StorageIndices<'a>,
     storage: StorageRef<'a, T>,
 }
 
@@ -65,7 +65,7 @@ impl<'a, T: WithDType> Iterator for NdArrayIter<'a, T> {
 impl<T: WithDType> NdArray<T> {
     pub fn iter(&self) -> NdArrayIter<T> {
         NdArrayIter {
-            indexes: self.0.layout.to_index(),
+            indexes: self.0.layout.storage_indices(),
             storage: self.storage_ref(0)
         }
     }

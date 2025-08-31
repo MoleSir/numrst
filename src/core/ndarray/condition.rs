@@ -37,7 +37,7 @@ impl<T: WithDType> NdArray<T> {
         {
             let mut result_storage = result.storage_mut(0);
             // zip ( result storage index, condition and false value )
-            for ((result_index, condition), fv) in result.layout().to_index().zip(mask.iter()).zip(false_val.iter_value()) {
+            for ((result_index, condition), fv) in result.layout().storage_indices().zip(mask.iter()).zip(false_val.iter_value()) {
                 if !condition {
                     result_storage.set_unchecked(result_index, fv);
                 }

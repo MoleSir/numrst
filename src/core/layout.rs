@@ -177,60 +177,72 @@ impl Layout {
         })
     }
 
-    pub fn to_index(&self) -> LayoutIndex {
-        LayoutIndex::from_layout(self)
+    /// Returns an iterator over **storage indices**.
+    ///
+    /// This iterator yields the linear (flat) indices as they are laid out
+    /// in the underlying storage buffer. The order depends on the memory
+    /// layout (e.g., row-major / column-major / with strides).
+    ///
+    /// Example for shape = (2, 2) in row-major layout:
+    /// yields: `0, 1, 2, 3`
+    pub fn storage_indices(&self) -> StorageIndices {
+        StorageIndices::from_layout(self)
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////
+///                  StorageIndices
+//////////////////////////////////////////////////////////////////////////////////////
+
 #[derive(Debug, Clone)]
-pub enum LayoutIndex<'a> {
-    UnContiguousIndex(UnContiguousIndex<'a>),
-    ContiguousIndex(ContiguousIndex),
+pub enum StorageIndices<'a> {
+    UncontiguousStorageIndices(UncontiguousStorageIndices<'a>),
+    ContiguousStorageIndices(ContiguousStorageIndices),
 }
 
-impl<'a> LayoutIndex<'a> {
+impl<'a> StorageIndices<'a> {
     pub fn from_layout(l: &'a Layout) -> Self {
         if l.is_contiguous() {
-            Self::ContiguousIndex(ContiguousIndex::from_layout(l))
+            Self::ContiguousStorageIndices(ContiguousStorageIndices::from_layout(l))
         } else {
-            Self::UnContiguousIndex(UnContiguousIndex::from_layout(l))
+            Self::UncontiguousStorageIndices(UncontiguousStorageIndices::from_layout(l))
         }
     }
 
     pub fn reset(&mut self) {
         match self {
-            Self::UnContiguousIndex(index) => index.reset(),
-            Self::ContiguousIndex(index) => index.reset(),
+            Self::UncontiguousStorageIndices(index) => index.reset(),
+            Self::ContiguousStorageIndices(index) => index.reset(),
         }
     }
 
     pub fn len(&self) -> usize {
         match self {
-            Self::UnContiguousIndex(index) => index.len(),
-            Self::ContiguousIndex(index) => index.len(),
+            Self::UncontiguousStorageIndices(index) => index.len(),
+            Self::ContiguousStorageIndices(index) => index.len(),
         }
     }
 }
 
-impl<'a> Iterator for LayoutIndex<'a> {
+impl<'a> Iterator for StorageIndices<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Self::ContiguousIndex(i) => i.next(),
-            Self::UnContiguousIndex(i) => i.next(),
+            Self::ContiguousStorageIndices(i) => i.next(),
+            Self::UncontiguousStorageIndices(i) => i.next(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct ContiguousIndex {
+pub struct ContiguousStorageIndices {
     init_storage_index: usize,
     storage_index: usize,
     end_index: usize, 
 }
 
-impl ContiguousIndex {
+impl ContiguousStorageIndices {
     fn from_layout(l: &Layout) -> Self {
         Self {
             init_storage_index: l.start_offset(),
@@ -248,7 +260,7 @@ impl ContiguousIndex {
     }
 }
 
-impl Iterator for ContiguousIndex {
+impl Iterator for ContiguousStorageIndices {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -263,8 +275,8 @@ impl Iterator for ContiguousIndex {
 }
 
 #[derive(Debug, Clone)]
-pub struct UnContiguousIndex<'a> {
-    init_storage_index: Option<usize>,
+pub struct UncontiguousStorageIndices<'a> {
+    init_storage_index: Option<usize>, /// For reset
     next_storage_index: Option<usize>,
     multi_index: Vec<usize>,
     dims: &'a [usize],
@@ -272,7 +284,7 @@ pub struct UnContiguousIndex<'a> {
     len: usize,
 }
 
-impl<'a> UnContiguousIndex<'a> {
+impl<'a> UncontiguousStorageIndices<'a> {
     fn new(dims: &'a [usize], stride: &'a [usize], start_offset: usize) -> Self {
         let elem_count: usize = dims.iter().product();
         let next_storage_index = if elem_count == 0 {
@@ -281,7 +293,7 @@ impl<'a> UnContiguousIndex<'a> {
             // This applies to the scalar case.
             Some(start_offset)
         };
-        UnContiguousIndex {
+        UncontiguousStorageIndices {
             init_storage_index: next_storage_index,
             next_storage_index,
             multi_index: vec![0; dims.len()],
@@ -304,7 +316,7 @@ impl<'a> UnContiguousIndex<'a> {
     }
 }
 
-impl Iterator for UnContiguousIndex<'_> {
+impl Iterator for UncontiguousStorageIndices<'_> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -341,12 +353,12 @@ impl Iterator for UnContiguousIndex<'_> {
 #[cfg(test)]
 #[allow(unused)]
 mod tests {
-    use super::{Layout, LayoutIndex};
+    use super::{Layout, StorageIndices};
 
     #[test]
     fn test_strided_index1() {
         let layout = Layout::contiguous((2, 5, 4));
-        let index = LayoutIndex::from_layout(&layout);
+        let index = StorageIndices::from_layout(&layout);
         for i in index {
             println!("{}", i);
         }
@@ -357,7 +369,7 @@ mod tests {
         let layout = Layout::contiguous((2, 3, 3));
         let layout = layout.narrow(1, 1, 1).unwrap();
         println!("{:?}", layout.stride());
-        let index = LayoutIndex::from_layout(&layout);
+        let index = StorageIndices::from_layout(&layout);
         for i in index {
             println!("{}", i);
         }

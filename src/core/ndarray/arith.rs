@@ -40,7 +40,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for T {
     {
         let storage = lhs.storage();
         let vec = storage.data();
-        let output: Vec<_> = lhs.layout().to_index()
+        let output: Vec<_> = lhs.layout().storage_indices()
             .map(|i| f(vec[i], rhs))
             .collect();
     
@@ -55,7 +55,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for T {
         let mut storage = lhs.0.storage.write().unwrap();
         let data = storage.data_mut();
 
-        lhs.layout().to_index()
+        lhs.layout().storage_indices()
             .for_each(|i| data[i] = f(data[i], rhs));
 
         Ok(())
@@ -96,7 +96,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for &NdArray<T> {
         let lhs = lhs_storage.data();
         let rhs = rhs_storage.data();
         
-        let output: Vec<_> = lhs_layout.to_index().zip(rhs_layout.to_index())
+        let output: Vec<_> = lhs_layout.storage_indices().zip(rhs_layout.storage_indices())
             .map(|(lhs_index, rhs_index)| f(lhs[lhs_index], rhs[rhs_index]))
             .collect();
         
@@ -119,7 +119,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for &NdArray<T> {
         let lhs = lhs_storage.data_mut();
         let rhs = rhs_storage.data();
         
-        for (lhs_index, rhs_index) in lhs_layout.to_index().zip(rhs_layout.to_index()) {
+        for (lhs_index, rhs_index) in lhs_layout.storage_indices().zip(rhs_layout.storage_indices()) {
             lhs[lhs_index] = f(lhs[lhs_index], rhs[rhs_index]) ;
         }
 
@@ -243,7 +243,7 @@ impl<T: WithDType> NdArray<T> {
         let storage = self.storage();
         let vec = storage.data();
         let mut output = vec![];
-        for index in self.layout().to_index() {
+        for index in self.layout().storage_indices() {
             output.push( f(vec[index]) );
         }
         
@@ -256,7 +256,7 @@ impl<T: WithDType> NdArray<T> {
     {
         let mut storage = self.0.storage.write().unwrap();
         let vec = storage.data_mut();
-        for index in self.layout().to_index() {
+        for index in self.layout().storage_indices() {
             vec[index] = f(vec[index]);
         }
     }

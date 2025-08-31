@@ -78,7 +78,7 @@ impl<T: WithDType> Storage<T> {
     }
 
     pub fn copy(&self, layout: &Layout) -> Self {
-        let output: Vec<_> = layout.to_index()
+        let output: Vec<_> = layout.storage_indices()
             .map(|i| self.0[i])
             .collect();
         Self(output)
@@ -89,7 +89,7 @@ impl<T: WithDType> Storage<T> {
         U: WithDType,
         F: Fn(T) -> U
     {
-        let output: Vec<_> = layout.to_index()
+        let output: Vec<_> = layout.storage_indices()
             .map(|i| f(self.0[i]))
             .collect();
         Storage(output)

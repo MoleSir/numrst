@@ -100,7 +100,7 @@ impl<T: WithDType> NdArray<T> {
         let dst_to_set = dst.spare_capacity_mut();
 
         let layout = self.layout().narrow(reduce_dim, 0, 1)?;
-        for (dst_index, src_index) in layout.to_index().enumerate() {
+        for (dst_index, src_index) in layout.storage_indices().enumerate() {
             let arr: DimArray<'_, T> = DimArray {
                 src: self.storage_ref(src_index),
                 size: reduce_dim_size,

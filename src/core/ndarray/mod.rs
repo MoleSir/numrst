@@ -13,7 +13,7 @@ mod condition;
 use std::sync::{Arc, RwLock};
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{view::{Matrix, Vector}, DType, Dim, Layout, NumDType, Shape, Storage, WithDType};
+use super::{view::{Matrix, Vector}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageIndices, WithDType};
 pub use iter::*;
 
 #[derive(Clone)]
@@ -114,6 +114,50 @@ impl<T: WithDType> NdArray<T> {
 
     pub fn to_vec(&self) -> Vec<T> {
         self.iter().collect()
+    }
+
+    /// Returns an iterator over **storage indices**.
+    ///
+    /// This iterator yields the linear (flat) indices as they are laid out
+    /// in the underlying storage buffer. The order depends on the memory
+    /// layout (e.g., row-major / column-major / with strides).
+    ///
+    /// Example for shape = (2, 2) in row-major layout:
+    /// yields: `0, 1, 2, 3`
+    pub fn storage_indices(&self) -> StorageIndices {
+        self.layout().storage_indices()
+    }
+
+    /// Returns an iterator over **dimension coordinates**.
+    ///
+    /// This iterator yields the multi-dimensional coordinates
+    /// (e.g., `[i, j, k, ...]`) of each element in the array, independent
+    /// of the physical storage layout.
+    ///
+    /// Example for shape = (2, 2):
+    /// yields: `[0, 0], [0, 1], [1, 0], [1, 1]`
+    pub fn dim_coordinates(&self) -> DimCoordinates {
+        self.shape().dim_coordinates()
+    }
+
+    pub fn dims_coordinates<const N: usize>(&self) -> Result<DimNCoordinates<N>> {
+        self.shape().dims_coordinates::<N>()
+    }
+
+    pub fn dim2_coordinates(&self) -> Result<DimNCoordinates<2>> {
+        self.shape().dim2_coordinates()
+    }
+
+    pub fn dim3_coordinates(&self) -> Result<DimNCoordinates<3>> {
+        self.shape().dim3_coordinates()
+    }
+
+    pub fn dim4_coordinates(&self) -> Result<DimNCoordinates<4>> {
+        self.shape().dim4_coordinates()
+    }
+
+    pub fn dim5_coordinates(&self) -> Result<DimNCoordinates<5>> {
+        self.shape().dim5_coordinates()
     }
 
     pub(crate) fn storage_clone(&self) -> Arc<RwLock<Storage<T>>> {

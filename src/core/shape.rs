@@ -95,6 +95,39 @@ impl Shape {
         Ok(Shape::from(bcast_dims))
     }
 
+
+    /// Returns an iterator over **dimension coordinates**.
+    ///
+    /// This iterator yields the multi-dimensional coordinates
+    /// (e.g., `[i, j, k, ...]`) of each element in the array, independent
+    /// of the physical storage layout.
+    ///
+    /// Example for shape = (2, 2):
+    /// yields: `[0, 0], [0, 1], [1, 0], [1, 1]`
+    pub fn dim_coordinates(&self) -> DimCoordinates {
+        DimCoordinates::from_shape(self)
+    }
+
+    pub fn dims_coordinates<const N: usize>(&self) -> Result<DimNCoordinates<N>> {
+        DimNCoordinates::<N>::from_shape(self)
+    }
+
+    pub fn dim2_coordinates(&self) -> Result<DimNCoordinates<2>> {
+        DimNCoordinates::<2>::from_shape(self)
+    }
+
+    pub fn dim3_coordinates(&self) -> Result<DimNCoordinates<3>> {
+        DimNCoordinates::<3>::from_shape(self)
+    }
+
+    pub fn dim4_coordinates(&self) -> Result<DimNCoordinates<4>> {
+        DimNCoordinates::<4>::from_shape(self)
+    }
+
+    pub fn dim5_coordinates(&self) -> Result<DimNCoordinates<5>> {
+        DimNCoordinates::<5>::from_shape(self)
+    }
+
     pub(crate) fn stride_contiguous(&self) -> Vec<usize> {
         let mut stride = self.dims()
             .iter()
@@ -107,6 +140,110 @@ impl Shape {
             .collect::<Vec<_>>();
         stride.reverse();
         stride
+    }
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+///                  DimCoordinates
+//////////////////////////////////////////////////////////////////////////////////////
+
+pub struct DimCoordinates {
+    shape: Vec<usize>,
+    current: Vec<usize>,
+    done: bool,
+}
+
+impl DimCoordinates {
+    pub fn from_shape(shape: &Shape) -> Self {
+        let rank = shape.rank();
+        Self {
+            shape: shape.dims().to_vec(),
+            current: vec![0; rank],
+            done: shape.is_scalar(),
+        }
+    }
+}
+
+impl Iterator for DimCoordinates {
+    type Item = Vec<usize>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        let result = self.current.clone();
+
+        for i in (0..self.current.len()).rev() {
+            self.current[i] += 1;
+            if self.current[i] < self.shape[i] {
+                break; 
+            } else {
+                self.current[i] = 0;
+                if i == 0 {
+                    self.done = true;
+                }
+            }
+        }
+
+        Some(result)
+    }
+}
+
+pub struct DimNCoordinates<const N: usize> {
+    shape: [usize; N],
+    current: [usize; N],
+    done: bool,
+}
+
+impl<const N: usize> DimNCoordinates<N> {
+    pub fn from_shape(from_shape: &Shape) -> Result<Self> {
+        if from_shape.rank() == N {
+            let mut shape = [0usize; N];
+            for i in 0..N {
+                shape[i] = from_shape.dims()[i];
+            }
+
+            let current = [0usize; N];
+            
+            Ok(Self {
+                shape,
+                current,
+                done: N == 0
+            })
+        } else {
+            Err(Error::UnexpectedNumberOfDims {
+                expected: N,
+                got: from_shape.rank(),
+                shape: Shape::from(from_shape.dims()),
+            })
+        }
+    }
+}
+
+impl<const N: usize> Iterator for DimNCoordinates<N> {
+    type Item = [usize; N];
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        let result = self.current;
+
+        for i in (0..N).rev() {
+            self.current[i] += 1;
+            if self.current[i] < self.shape[i] {
+                break; 
+            } else {
+                self.current[i] = 0;
+                if i == 0 {
+                    self.done = true;
+                }
+            }
+        }
+
+        Some(result)
     }
 }
 
@@ -450,5 +587,130 @@ mod tests {
         assert_eq!(shape.dims(), &[2, 3, 4, 5, 6]);
         let shape = Shape::from((2, 3, 4, 5, 6, 7));
         assert_eq!(shape.dims(), &[2, 3, 4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn test_dim_coordinates_2d() {
+        let shape = Shape([2, 2].to_vec());
+        let mut iter = shape.dim_coordinates();
+
+        let expected = [
+            [0, 0].to_vec(),
+            [0, 1].to_vec(),
+            [1, 0].to_vec(),
+            [1, 1].to_vec(),
+        ];
+
+        for e in expected {
+            let idx = iter.next();
+            assert_eq!(idx.unwrap(), e);
+        }
+
+        // Iter should be exhausted
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_dim_coordinates_2d_varied() {
+        let shape = Shape([3, 1].to_vec());
+        let mut iter = shape.dim_coordinates();
+
+        let expected = [
+            [0, 0].to_vec(),
+            [1, 0].to_vec(),
+            [2, 0].to_vec(),
+        ];
+
+        for e in expected {
+            let idx = iter.next();
+            assert_eq!(idx.unwrap(), e);
+        }
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_dim_coordinates_3d() {
+        let shape = Shape([2, 2, 2].to_vec());
+        let mut iter = shape.dim_coordinates();
+
+        let mut collected = Vec::new();
+        while let Some(idx) = iter.next() {
+            collected.push(idx);
+        }
+
+        let expected = [
+            [0, 0, 0].to_vec(),
+            [0, 0, 1].to_vec(),
+            [0, 1, 0].to_vec(),
+            [0, 1, 1].to_vec(),
+            [1, 0, 0].to_vec(),
+            [1, 0, 1].to_vec(),
+            [1, 1, 0].to_vec(),
+            [1, 1, 1].to_vec(),
+        ];
+
+        assert_eq!(collected, expected);
+    }
+
+    #[test]
+    fn test_dim_n_coordinates_2d() {
+        let shape = Shape([2, 2].to_vec());
+        let mut iter = shape.dim2_coordinates().unwrap();
+
+        let expected = [
+            [0, 0],
+            [0, 1],
+            [1, 0],
+            [1, 1],
+        ];
+
+        for e in expected {
+            let idx = iter.next();
+            assert_eq!(idx.unwrap(), e);
+        }
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_dim_n_coordinates_3d() {
+        let shape = Shape([2, 2, 2].to_vec());
+        let mut iter = shape.dim3_coordinates().unwrap();
+
+        let expected = [
+            [0, 0, 0],
+            [0, 0, 1],
+            [0, 1, 0],
+            [0, 1, 1],
+            [1, 0, 0],
+            [1, 0, 1],
+            [1, 1, 0],
+            [1, 1, 1],
+        ];
+
+        for e in expected {
+            let idx = iter.next();
+            assert_eq!(idx.unwrap(), e);
+        }
+
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_dim_n_coordinates_wrong_dim() {
+        let shape = Shape([2, 2].to_vec());
+
+        // dim3_coordinates should return error
+        assert!(shape.dim3_coordinates().is_err());
+        assert!(shape.dims_coordinates::<3>().is_err());
+    }
+
+    #[test]
+    fn test_dim_n_coordinates_empty_shape() {
+        let shape = Shape(vec![]);
+        let mut iter = shape.dims_coordinates::<0>().unwrap();
+        let result = iter.next();
+        assert_eq!(result, None);
     }
 }
