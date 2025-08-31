@@ -383,6 +383,99 @@ impl<T: WithDType> NdArray<T> {
 
         Ok(vec)
     }
+
+    /// Flattens the input tensor on the dimension indexes from `start_dim` to `end_dim` (both
+    /// inclusive).
+    pub fn flatten<D1: Dim, D2: Dim>(&self, start_dim: D1, end_dim: D2) -> Result<Self> {
+        self.flatten_(Some(start_dim), Some(end_dim))
+    }
+
+    /// Flattens the input tensor on the dimension indexes from `0` to `end_dim` (inclusive).
+    pub fn flatten_to<D: Dim>(&self, end_dim: D) -> Result<Self> {
+        self.flatten_(None::<usize>, Some(end_dim))
+    }
+
+    /// Flattens the input tensor on the dimension indexes from `start_dim` (inclusive) to the last
+    /// dimension.
+    pub fn flatten_from<D: Dim>(&self, start_dim: D) -> Result<Self> {
+        self.flatten_(Some(start_dim), None::<usize>)
+    }
+
+    /// Flattens the input tensor by reshaping it into a one dimension tensor.
+    /// 
+    /// ```rust
+    /// use numrst::NdArray;
+    /// let arr = NdArray::new(&[[0f32, 1.], [2., 3.], [4., 5.]]).unwrap();
+    /// let arr = arr.flatten_all().unwrap();
+    /// assert_eq!(arr.to_vec(), [0., 1., 2., 3., 4., 5.]);
+    /// ```
+    pub fn flatten_all(&self) -> Result<Self> {
+        self.flatten_(None::<usize>, None::<usize>)
+    }
+
+    /// Repeat this tensor along the specified dimensions.
+    pub fn repeat<S: Into<Shape>>(&self, shape: S) -> Result<Self> {
+        let repeats: Shape = shape.into();
+        let mut repeats = repeats.dims().to_vec();
+
+        if repeats.len() > self.rank() {
+            Err(Error::RepeatRankOutOfRange { repeats: repeats.clone().into(), shape: self.shape().into() })?;
+        } else if repeats.len() > self.rank() {
+            for _ in 0..(repeats.len() - self.rank()) {
+                repeats.push(1);
+            }
+        }
+
+        let mut arr = self.clone();
+
+        for (idx, &repeat) in repeats.iter().enumerate() {
+            if repeat > 1 {
+                arr = NdArray::cat(&vec![&arr; repeat], idx)?
+            }
+        }
+        Ok(arr)
+    }
+
+    /// Repeat this tensor along the specified dimension with specified times
+    pub fn repeat_dim<D: Dim>(&self, dim: D, times: usize) -> Result<Self> {
+        if times == 0 {
+            self.squeeze(dim)
+        } else if times == 1 {
+            Ok(self.clone())
+        } else {
+            NdArray::cat(&vec![self; times], dim)
+        }
+    }
+
+    fn flatten_<D1: Dim, D2: Dim>(
+        &self,
+        start_dim: Option<D1>,
+        end_dim: Option<D2>,
+    ) -> Result<Self> {
+        if self.rank() == 0 {
+            self.reshape(1)
+        } else {
+            let start_dim = match start_dim {
+                None => 0,
+                Some(dim) => dim.to_index(self.shape(), "flatten")?,
+            };
+            let end_dim = match end_dim {
+                None => self.rank() - 1,
+                Some(dim) => dim.to_index(self.shape(), "flatten")?,
+            };
+            if start_dim < end_dim {
+                let dims = self.dims();
+                let mut dst_dims = dims[..start_dim].to_vec();
+                dst_dims.push(dims[start_dim..end_dim + 1].iter().product::<usize>());
+                if end_dim + 1 < dims.len() {
+                    dst_dims.extend(&dims[end_dim + 1..]);
+                }
+                self.reshape(dst_dims)
+            } else {
+                Ok(self.clone())
+            }
+        }
+    }
 }
 
 impl<T: WithDType> AsRef<NdArray<T>> for NdArray<T> {
@@ -609,6 +702,54 @@ mod test {
         let splits = a.split(0)?;
         
         assert!(splits.is_empty()); 
+        Ok(())
+    }
+
+    #[test]
+    fn test_repeat_1d() -> Result<()> {
+        let a = NdArray::new(&[1, 2, 3])?;
+        let b = a.repeat(3)?; // repeat each dimension 3 times
+        assert_eq!(b.dims(), [3 * 3]); // shape: [9]
+        assert_eq!(b.to_vec(), [1, 2, 3, 1, 2, 3, 1, 2, 3]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_repeat_2d() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = a.repeat((2, 3))?; // repeat 2 times along axis 0, 3 times along axis 1
+        assert_eq!(b.dims(), [4, 6]);
+        assert_eq!(
+            b.to_vec(),
+            [
+                1, 2, 1, 2, 1, 2,
+                3, 4, 3, 4, 3, 4,
+                1, 2, 1, 2, 1, 2,
+                3, 4, 3, 4, 3, 4
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_repeat_dim() -> Result<()> {
+        let a = NdArray::new(&[1, 2, 3])?;
+        let b = a.repeat_dim(0, 2)?; // repeat along axis 0 two times
+        assert_eq!(b.dims(), [6]);
+        assert_eq!(b.to_vec(), [1, 2, 3, 1, 2, 3]);
+
+        let c = a.repeat_dim(0, 1)?; // repeat once -> same as clone
+        assert_eq!(c.dims(), [3]);
+        assert_eq!(c.to_vec(), [1, 2, 3]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_repeat_high_dim() -> Result<()> {
+        let a = NdArray::new(&[[1, 2], [3, 4]])?;
+        let b = a.repeat((2, 3))?; // more dims than array, extra dims should be treated as 1
+        assert_eq!(b.dims(), [4, 6]);
         Ok(())
     }
 }

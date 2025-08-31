@@ -149,6 +149,30 @@ where
     }
 }
 
+impl<F: FloatDType> NdArray<F> {
+    /// Generate a 1-D `NdArray` of `num` evenly spaced values over the interval [start, stop).
+    /// 
+    /// # Example
+    ///
+    /// ```
+    /// # use numrst::NdArray;
+    /// let arr = NdArray::linspace(0.0, 1.0, 5).unwrap();
+    /// assert_eq!(arr.to_vec(), [0.0, 0.2, 0.4, 0.6000000000000001, 0.8]);
+    /// ```
+    pub fn linspace(start: F, stop: F, num: usize) -> Result<Self> {
+        let step = (stop - start) / F::from_usize(num);
+        let vec: Vec<_> = std::iter::successors(Some(start), |&x| {
+            let next = x + step;
+            if next < stop { Some(next) } else { None }
+        })
+        .collect();
+
+        let len = vec.len();
+        let storage = Storage::new(vec);
+        Ok(Self::from_storage(storage, len))
+    }
+}
+
 impl<F: FloatDType> NdArray<F> 
 where 
     StandardNormal: Distribution<F>

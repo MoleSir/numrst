@@ -44,6 +44,12 @@ pub enum Error {
         op: &'static str,
     },
 
+    #[error("try to repeat {repeats} for shape {shape}")]
+    RepeatRankOutOfRange {
+        repeats: Shape,
+        shape: Shape,
+    },
+
     // === Shape Errors ===
     #[error("unexpected element size in {op}, expected: {expected}, got: {got}")]
     ElementSizeMismatch {
