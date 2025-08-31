@@ -17,7 +17,7 @@ It provides a rich set of numerical operations, including broadcasting, indexing
   - Float functions: `exp sin cos sqrt tanh floor ceil round abs neg ln`
 
 - NdArray operations:
-  - Shape manipulation: `reshape`, `transpose`, `squeeze`, `unsqueeze`, `narrow`, `narrow_range`
+  - Shape manipulation: `reshape`, `transpose`, `squeeze`, `unsqueeze`, `narrow`, `narrow_range`, `repeat`, `flatten`, `split`
   - Concatenation/stacking: `cat`, `stack`
 
 - Broadcasting:  NumPy-like broadcasting (`broadcast_add`, `broadcast_sub`, etc.)
@@ -28,7 +28,7 @@ It provides a rich set of numerical operations, including broadcasting, indexing
 
 - Array creation:
   - `zeros`, `ones`, `arange`, `rand`, `randn`, `trues`, `falses`
-  - `from_vec`, `fill`, `new`
+  - `from_vec`, `full`, `new`
 
 - Indexing & slicing:
   - Single index: `arr.index(2)?`
@@ -41,17 +41,6 @@ It provides a rich set of numerical operations, including broadcasting, indexing
 - File format: 
   - Support operate with .npy and .npz
   - Custom file format .nrst and .nrsz
-
-
-
-## 📦 Installation
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-numrst = { git = "https://github.com/MoleSir/numrst" }
-```
 
 
 
