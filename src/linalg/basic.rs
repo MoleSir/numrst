@@ -1,4 +1,4 @@
-use crate::{Error, NdArray, NumDType, Result};
+use crate::{Error, Matrix, NdArray, NumDType, Result, ToMatrixView, ToVectorView};
 
 pub enum Norm {
     Fro,         // Frobenius 
@@ -22,16 +22,73 @@ pub fn norm<T: NumDType>(array: &NdArray<T>, ord: Norm) -> f64 {
     }
 }
 
-pub fn dot<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<T> {
-    let n = a.dims1()?;
-    let m = b.dims1()?;
-    if m != n {
-        return Err(Error::Msg("dot only apply two size len vector".into()));
+pub fn dot<T, V1, V2>(a: V1, b: V2) -> Result<T> 
+where 
+    T: NumDType,
+    V1: ToVectorView<T>,
+    V2: ToVectorView<T>,
+{
+    let a = a.to_vector_view()?;
+    let b = b.to_vector_view()?;
+
+    if a.len() != b.len() {
+        Err(Error::Msg("len mismatch in dot".into()))?;
     }
 
-    let result = a.iter().zip(b.iter()).map(|(a, b)| a * b).sum::<T>();
-
+    let result = a.into_iter().zip(b.into_iter()).map(|(a, b)| a * b).sum::<T>();
     Ok(result)
+}
+
+pub fn matmul<T, M1, M2>(a: M1, b: M2) -> Result<Matrix<T>> 
+where 
+    T: NumDType,
+    M1: ToMatrixView<T>,
+    M2: ToMatrixView<T>,
+{
+    let a = a.to_matrix_view()?;
+    let b = b.to_matrix_view()?; 
+
+    let (m, k1) = a.shape();
+    let (k2, n) = b.shape();
+
+    if k1 != k2 {
+        Err(Error::Msg(format!("invalid shape in matmul in {:?} and {:?}", a.shape(), b.shape())))?;
+    }
+    let z = k1;
+
+    let res = Matrix::<T>::zeros(m, n)?;
+    
+    for i in 0..m {
+        for j in 0..n {
+            let mut sum = T::zero();
+            for k in 0..z {
+                sum += a.g(i, k) * b.g(k, j);
+            }
+            res.s(i, j, sum);
+        }
+    }
+
+    Ok(res)
+}
+
+pub fn trace<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<T> {
+    let mat = mat.to_matrix_view()?;
+    let (m, n) = mat.shape();
+    if m != n {
+        Err(Error::Msg(format!("trace should square")))?;
+    }
+    
+    let t = (0..m).into_iter()
+        .map(|i| mat.g(i, i))
+        .product::<T>();
+
+    Ok(t)
+}
+
+pub fn is_square<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<bool> {
+    let mat = mat.to_matrix_view()?;
+    let (m, n) = mat.shape();
+    Ok(m == n)
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::{Error, NdArray, Result, Storage, WithDType};
-use super::{Layout, NdArrayId, NdArrayImpl, NumDType, Shape, StorageArc, StorageMut, Vector, VectorLayout};
+use super::{Layout, NdArrayId, NdArrayImpl, NumDType, Shape, StorageArc, StorageRef, Vector, VectorLayout, VectorView};
 
 pub struct MatrixLayout {
     pub(crate) shape: (usize, usize),
@@ -14,7 +14,7 @@ pub struct Matrix<T: WithDType> {
 }
 
 pub struct MatrixView<'a, T: WithDType> {
-    pub(crate) storage: StorageMut<'a, T>,
+    pub(crate) storage: StorageRef<'a, T>,
     pub(crate) shape: (usize, usize),
     pub(crate) strides: (usize, usize),
 }
@@ -80,7 +80,7 @@ impl<T: WithDType> Matrix<T> {
 
     pub fn to_view<'a>(&'a self) -> MatrixView<'a, T> {
         MatrixView { 
-            storage: self.storage.get_mut(self.layout.start_offset), 
+            storage: self.storage.get_ref(self.layout.start_offset), 
             shape: self.layout.shape, 
             strides: self.layout.strides, 
         }
@@ -148,10 +148,36 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         let _ = array.dims2()?;
 
         Ok(Self {
-            storage: array.storage_mut(array.layout().start_offset()),
+            storage: array.storage_ref(array.layout().start_offset()),
             shape: (array.layout().dims()[0], array.layout().dims()[1]),
             strides: (array.layout().stride()[0], array.layout().stride()[1]),
         })
+    }
+
+    pub fn row(&'a self, row: usize) -> Result<VectorView<'a, T>> {
+        if row > self.row_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
+        } else {
+            let storage = self.storage.slice(row * self.row_stride());
+            Ok(VectorView {
+                storage,
+                len: self.col_size(),
+                stride: self.col_stride(),
+            })
+        }
+    }
+
+    pub fn col(&'a self, col: usize) -> Result<VectorView<'a, T>> {
+        if col > self.col_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "col", len: self.col_size(), index: col });
+        } else {
+            let storage = self.storage.slice(col * self.col_stride());
+            Ok(VectorView {
+                storage,
+                len: self.row_size(),
+                stride: self.row_stride(),
+            })
+        }
     }
 
     pub fn get(&self, row: usize, col: usize) -> Option<T> {
@@ -168,20 +194,20 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         self.storage.get_unchecked(self.storage_index(row, col))
     }
 
-    pub fn set(&mut self, row: usize, col: usize, value: T) {
-        if row >= self.row_size() || col >= self.col_size() {
-            return;
-        } else {
-            self.storage.set_unchecked(self.storage_index(row, col), value);
-        }
-    }
-
     pub fn row_size(&self) -> usize {
         self.shape.0
     }
 
     pub fn col_size(&self) -> usize {
         self.shape.1
+    }
+
+    pub fn row_stride(&self) -> usize {
+        self.strides.0
+    }
+
+    pub fn col_stride(&self) -> usize {
+        self.strides.1
     }
 
     pub fn shape(&self) -> (usize, usize) {

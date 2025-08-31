@@ -96,6 +96,7 @@ impl<T: WithDType> Storage<T> {
     }
 }
 
+
 #[derive(Clone)]
 pub struct StorageArc<T>(pub(crate) Arc<RwLock<Storage<T>>>);
 
@@ -141,7 +142,7 @@ impl<T: WithDType> StorageArc<T> {
 
     #[inline]
     pub fn get_ref(&self, start_offset: usize) -> StorageRef<'_, T> {
-        StorageRef(std::sync::RwLockReadGuard::map(self.0.read().unwrap(), |s| &s.data()[start_offset..]))
+        StorageRef::Guard(std::sync::RwLockReadGuard::map(self.0.read().unwrap(), |s| &s.data()[start_offset..]))
     }
 
     #[inline]
@@ -150,24 +151,42 @@ impl<T: WithDType> StorageArc<T> {
     }
 }
 
-pub struct StorageRef<'a, T>(pub(crate) std::sync::MappedRwLockReadGuard<'a, [T]>);
+// pub struct StorageRef<'a, T>(std::sync::MappedRwLockReadGuard<'a, [T]>);
+pub enum  StorageRef<'a, T> {
+    Guard(std::sync::MappedRwLockReadGuard<'a, [T]>),
+    Slice(&'a [T]),
+}
 
-pub struct StorageMut<'a, T>(pub(crate) std::sync::MappedRwLockWriteGuard<'a, [T]>);
+pub struct StorageMut<'a, T>(std::sync::MappedRwLockWriteGuard<'a, [T]>);
 
 impl<'a, T: WithDType> StorageRef<'a, T> {
+    pub fn slice(&'a self, index: usize) -> StorageRef<'a, T> {
+        match self {
+            Self::Guard(gurad) => Self::Slice(&gurad[index..]),
+            Self::Slice(s) => Self::Slice(&s[index..]),
+        }
+    }
+
     #[inline]
     pub fn get(&self, index: usize) -> Option<T> {
-        self.0.get(index).copied()
+        self.data().get(index).copied()
     }
 
     #[inline]
     pub fn get_unchecked(&self, index: usize) -> T {
-        self.0[index]
+        self.data()[index]
     }
 
     #[inline]
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.data().len()
+    }
+
+    pub fn data(&self) -> &[T] {
+        match self {
+            Self::Guard(gurad) => &gurad,
+            Self::Slice(s) => s,
+        }
     }
 }
 

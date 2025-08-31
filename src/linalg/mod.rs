@@ -1,5 +1,6 @@
 mod basic;
 mod lu;
+mod qr;
 mod cholesky;
 mod solve;
 

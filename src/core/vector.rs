@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::{Error, NdArray, NumDType, Result, Storage, WithDType};
-use super::{Layout, NdArrayId, NdArrayImpl, Shape, StorageArc, StorageMut};
+use super::{Layout, NdArrayId, NdArrayImpl, Shape, StorageArc, StorageRef};
 
 pub struct VectorLayout {
     pub(crate) len: usize,
@@ -14,7 +14,7 @@ pub struct Vector<T: WithDType> {
 }
 
 pub struct VectorView<'a, T: WithDType> {
-    pub(crate) storage: StorageMut<'a, T>,
+    pub(crate) storage: StorageRef<'a, T>,
     pub(crate) len: usize,
     pub(crate) stride: usize,
 }
@@ -75,7 +75,7 @@ impl<T: WithDType> Vector<T> {
 
     pub fn to_view<'a>(&'a self) -> VectorView<'a, T> {
         VectorView {
-            storage: self.storage.get_mut(self.layout.start_offset),
+            storage: self.storage.get_ref(self.layout.start_offset),
             len: self.layout.len,
             stride: self.layout.stride,
         }
@@ -131,7 +131,7 @@ impl<'a, T: WithDType> VectorView<'a, T> {
         let len = array.layout().dims()[0];
         let stride = array.layout().stride()[0];
         let start_offset = array.layout().start_offset();
-        let storage = array.storage_mut(start_offset);
+        let storage = array.storage_ref(start_offset);
         Ok(Self { len, stride, storage })
     }
 
@@ -146,12 +146,6 @@ impl<'a, T: WithDType> VectorView<'a, T> {
     /// Uncheck `get`
     pub fn g(&self, index: usize) -> T {
         self.storage.get_unchecked(self.storage_index(index))
-    }
-
-    pub fn set(&mut self, index: usize, value: T) {
-        if index < self.len {
-            self.storage.set_unchecked(self.storage_index(index), value);
-        }
     }
 
     pub fn len(&self) -> usize {
@@ -169,6 +163,17 @@ impl<'a, T: WithDType> IntoIterator for &'a Vector<T> {
     type IntoIter = VectorIter<'a, T>;
     fn into_iter(self) -> VectorIter<'a, T> {
         self.iter()
+    }
+}
+
+impl<'a, T: WithDType> IntoIterator for VectorView<'a, T> {
+    type Item = T;
+    type IntoIter = VectorIter<'a, T>;
+    fn into_iter(self) -> VectorIter<'a, T> {
+        VectorIter {
+            view: self,
+            index: 0,
+        }
     }
 }
 
