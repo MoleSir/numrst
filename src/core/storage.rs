@@ -1,3 +1,4 @@
+use std::sync::{Arc, RwLock};
 use rand::rng;
 use rand_distr::{Distribution, StandardNormal, StandardUniform, Uniform};
 use crate::{Error, Result};
@@ -5,7 +6,6 @@ use super::{DType, FloatDType, Layout, NumDType, Shape, WithDType};
 
 #[derive(Clone)]
 pub struct Storage<T>(Vec<T>);
-
 
 impl<T: NumDType> Storage<T> {
     pub fn zeros(shape: &Shape) -> Self {
@@ -96,3 +96,104 @@ impl<T: WithDType> Storage<T> {
     }
 }
 
+#[derive(Clone)]
+pub struct StorageArc<T>(pub(crate) Arc<RwLock<Storage<T>>>);
+
+impl<T: WithDType> StorageArc<T> {
+    pub fn new(storage: Storage<T>) -> Self {
+        Self(Arc::new(RwLock::new(storage)))
+    }
+
+    #[inline]
+    pub fn read(&self) -> std::sync::RwLockReadGuard<'_, Storage<T>> {
+        self.0.read().unwrap()
+    }
+
+    #[inline]
+    pub fn write(&self) -> std::sync::RwLockWriteGuard<'_, Storage<T>> {
+        self.0.write().unwrap()
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<T> {
+        self.write().data().get(index).copied()
+    }
+
+    #[inline]
+    pub fn set(&mut self, index: usize, val: T) -> Option<()> {
+        if index >= self.read().data().len() {
+            None
+        } else {
+            self.set_unchecked(index, val);
+            Some(())
+        }
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, index: usize) -> T {
+        self.write().data()[index]
+    }
+
+    #[inline]
+    pub fn set_unchecked(&self, index: usize, val: T) {
+        self.write().data_mut()[index] = val;
+    }
+
+    #[inline]
+    pub fn get_ref(&self, start_offset: usize) -> StorageRef<'_, T> {
+        StorageRef(std::sync::RwLockReadGuard::map(self.0.read().unwrap(), |s| &s.data()[start_offset..]))
+    }
+
+    #[inline]
+    pub fn get_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
+        StorageMut(std::sync::RwLockWriteGuard::map(self.0.write().unwrap(), |s| &mut s.data_mut()[start_offset..]))
+    }
+}
+
+pub struct StorageRef<'a, T>(pub(crate) std::sync::MappedRwLockReadGuard<'a, [T]>);
+
+pub struct StorageMut<'a, T>(pub(crate) std::sync::MappedRwLockWriteGuard<'a, [T]>);
+
+impl<'a, T: WithDType> StorageRef<'a, T> {
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<T> {
+        self.0.get(index).copied()
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, index: usize) -> T {
+        self.0[index]
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl<'a, T: WithDType> StorageMut<'a, T> {
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<T> {
+        self.0.get(index).copied()
+    }
+
+    #[inline]
+    pub fn set(&mut self, index: usize, val: T) -> Option<()> {
+        if index >= self.0.len() {
+            None
+        } else {
+            self.set_unchecked(index, val);
+            Some(())
+        }
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, index: usize) -> T {
+        self.0[index]
+    }
+
+    #[inline]
+    pub fn set_unchecked(&mut self, index: usize, val: T) {
+        self.0[index] = val;
+    }
+}

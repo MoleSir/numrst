@@ -52,7 +52,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for T {
         where 
             F: FnMut(T, T) -> T
     {
-        let mut storage = lhs.0.storage.write().unwrap();
+        let mut storage = lhs.0.storage.write();
         let data = storage.data_mut();
 
         lhs.layout().storage_indices()
@@ -110,7 +110,7 @@ impl<T: WithDType> NdArrayBinaryOpRhs<T> for &NdArray<T> {
     {
         NdArray::<T>::same_shape_binary_op(lhs, rhs, op_name)?;
 
-        let mut lhs_storage = lhs.0.storage.write().unwrap();
+        let mut lhs_storage = lhs.0.storage.write();
         let rhs_storage = rhs.storage();
         let lhs_layout = lhs.layout();
         let rhs_layout = rhs.layout();
@@ -254,7 +254,7 @@ impl<T: WithDType> NdArray<T> {
     where
         F: FnMut(T) -> T
     {
-        let mut storage = self.0.storage.write().unwrap();
+        let mut storage = self.0.storage.write();
         let vec = storage.data_mut();
         for index in self.layout().storage_indices() {
             vec[index] = f(vec[index]);

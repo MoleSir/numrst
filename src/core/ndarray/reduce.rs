@@ -1,5 +1,5 @@
-use crate::{Dim, FloatCategory, FloatDType, IntCategory, IntDType, NumCategory, NumDType, Result, Storage, WithDType};
-use super::{iter::{NdArrayIter, ResettableIterator, StorageRef}, NdArray};
+use crate::{Dim, FloatCategory, FloatDType, IntCategory, IntDType, NumCategory, NumDType, Result, Storage, StorageRef, WithDType};
+use super::{iter::{NdArrayIter, ResettableIterator}, NdArray};
 
 macro_rules! reduce_impl {
     ($fn_name:ident, $reduce:ident) => {
@@ -346,7 +346,7 @@ impl<'a, T: WithDType> IntoIterator for DimArray<'a, T> {
     type IntoIter = DimArrayIter<'a, T>;
     type Item = T;
     fn into_iter(self) -> Self::IntoIter {
-        DimArrayIter {
+        DimArrayIter::<'a, T> {
             array: self,
             index: 0,
         }

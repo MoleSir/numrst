@@ -1,18 +1,10 @@
-use crate::{Error, IndexOp, NdArray, NumDType, Result};
-
-pub fn eye<T: NumDType>(size: usize) -> Result<NdArray<T>> {
-    let arr = NdArray::<T>::zeros((size, size))?;
-    for n in 0..size {
-        arr.index((n, n))?.affine_assign(T::one(), T::one())?;
-    }
-    Ok(arr)
-}
+use crate::{Error, NdArray, NumDType, Result};
 
 pub enum Norm {
-    Fro,         // Frobenius 范数
-    Inf,         // ∞ 范数
-    NegInf,      // -∞ 范数
-    P(f64),      // p 范数
+    Fro,         // Frobenius 
+    Inf,         // ∞ 
+    NegInf,      // -∞ 
+    P(f64),      // p
 }
 
 pub fn norm<T: NumDType>(array: &NdArray<T>, ord: Norm) -> f64 {

@@ -3,9 +3,9 @@ use super::{Dim, Shape};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Layout {
-    shape: Shape,
-    stride: Vec<usize>,
-    start_offset: usize,
+    pub(crate) shape: Shape,
+    pub(crate) stride: Vec<usize>,
+    pub(crate) start_offset: usize,
 }
 
 impl Layout {

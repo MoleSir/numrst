@@ -1,6 +1,9 @@
 mod basic;
-mod decomposition;
+mod lu;
+mod cholesky;
 mod solve;
 
 pub use basic::*;
-pub use decomposition::*;
+pub use lu::*;
+pub use cholesky::*;
+pub use solve::*;

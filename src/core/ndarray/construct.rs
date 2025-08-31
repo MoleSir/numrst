@@ -1,6 +1,6 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use rand_distr::{Distribution, StandardNormal, StandardUniform};
-use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, WithDType};
+use crate::{Error, FloatDType, Layout, NumDType, Result, Shape, Storage, StorageArc, WithDType};
 use super::{NdArray, NdArrayId, NdArrayImpl};
 
 impl<T: WithDType> NdArray<T> {
@@ -39,7 +39,7 @@ impl<T: WithDType> NdArray<T> {
     pub(crate) fn from_storage<S: Into<Shape>>(storage: Storage<T>, shape: S) -> Self {
         let ndarray_ = NdArrayImpl {
             id: NdArrayId::new(),
-            storage: Arc::new(RwLock::new(storage)),
+            storage: StorageArc::new(storage),
             layout: Layout::contiguous(shape),
         };
         NdArray(Arc::new(ndarray_))
@@ -122,6 +122,15 @@ impl<T: NumDType> NdArray<T> {
         }
         let storage = Storage::new(vec);
         Ok(Self::from_storage(storage, shape))
+    }
+
+    pub fn eye(size: usize) -> Result<Self> {
+        let mut vec = vec![T::zero(); size * size];
+        for n in 0..size {
+            vec[n * size + n] = T::one();
+        }
+        let storage = Storage::new(vec);
+        Ok(Self::from_storage(storage, (size, size)))
     }
 }
 

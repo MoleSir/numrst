@@ -10,20 +10,20 @@ mod broadcast;
 mod convert;
 mod condition;
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{view::{Matrix, Vector}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageIndices, WithDType};
+use super::{DType, Dim, DimCoordinates, DimNCoordinates, Layout, Matrix, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, Vector, WithDType};
 pub use iter::*;
 
 #[derive(Clone)]
-pub struct NdArray<D>(Arc<NdArrayImpl<D>>);
+pub struct NdArray<D>(pub(crate) Arc<NdArrayImpl<D>>);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct NdArrayId(usize);
 
 impl NdArrayId {
-    fn new() -> Self {
+    pub fn new() -> Self {
         use std::sync::atomic;
         static COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(1);
         Self(COUNTER.fetch_add(1, atomic::Ordering::Relaxed))
@@ -31,9 +31,9 @@ impl NdArrayId {
 }
 
 pub struct NdArrayImpl<T> {
-    id: NdArrayId,
-    storage: Arc<RwLock<Storage<T>>>,
-    layout: Layout,
+    pub(crate) id: NdArrayId,
+    pub(crate) storage: StorageArc<T>,
+    pub(crate) layout: Layout,
 }
 
 impl<T: WithDType> NdArray<T> {
@@ -51,22 +51,24 @@ impl<T: WithDType> NdArray<T> {
 
     pub fn to_scalar(&self) -> Result<T> {
         self.check_scalar()?;
-        
-        let storage = self.0.storage.read().unwrap();
-        let data = storage.data();
-        let index = self.layout().start_offset();
-        let scalar = data[index];
-        Ok(scalar)
+        let v = self.storage_ref(self.layout().start_offset()).get_unchecked(0);
+        Ok(v)
     }
 
     pub fn set_scalar(&self, val: T) -> Result<()> {
         self.check_scalar()?;
-
-        let mut storage = self.0.storage.write().unwrap();
-        let data = storage.data_mut();
-        let index = self.layout().start_offset();
-        data[index] = val;
+        self.storage_mut(self.layout().start_offset()).set_unchecked(0, val);
         Ok(())
+    }
+
+    #[inline]
+    pub fn storage_ref(&self, start_offset: usize) -> StorageRef<'_, T> {
+        self.0.storage.get_ref(start_offset)
+    }
+
+    #[inline]
+    pub fn storage_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
+        self.0.storage.get_mut(start_offset)
     }
 }
 
@@ -97,7 +99,7 @@ impl<T: WithDType> NdArray<T> {
     }
 
     pub fn storage(&self) -> std::sync::RwLockReadGuard<'_, Storage<T>> {
-        self.0.storage.read().unwrap()
+        self.0.storage.0.read().unwrap()
     }
 
     pub fn element_count(&self) -> usize {
@@ -160,12 +162,12 @@ impl<T: WithDType> NdArray<T> {
         self.shape().dim5_coordinates()
     }
 
-    pub(crate) fn storage_clone(&self) -> Arc<RwLock<Storage<T>>> {
+    pub(crate) fn storage_clone(&self) -> StorageArc<T> {
         self.0.storage.clone()
     }
 }
 
-impl<T: NumDType> NdArray<T> {
+impl<T: WithDType> NdArray<T> {
     pub fn matrix_view(&self) -> Result<Matrix<T>> {
         Matrix::<T>::from_ndarray(self)
     }
@@ -173,7 +175,9 @@ impl<T: NumDType> NdArray<T> {
     pub fn vector_view(&self) -> Result<Vector<T>> {
         Vector::<T>::from_ndarray(self)
     }
+}
 
+impl<T: NumDType> NdArray<T> {
     pub fn allclose(&self, other: &Self, rtol: f64, atol: f64) -> bool {
         if self.shape() != other.shape() {
             return false;

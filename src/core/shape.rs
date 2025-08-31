@@ -3,7 +3,7 @@ use std::vec;
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Shape(Vec<usize>);
+pub struct Shape(pub(crate) Vec<usize>);
 
 impl Shape {
     pub fn scalar() -> Self {

@@ -18,7 +18,7 @@ impl<T: WithDType> fmt::Display for NdArray<T> {
         let shape = self.dims();
         assert!(!shape.is_empty());
 
-        fmt_ndarray(f, &*impl_ref.storage.read().unwrap().data(), shape)
+        fmt_ndarray(f, &*impl_ref.storage.0.read().unwrap().data(), shape)
     }
 }
 
