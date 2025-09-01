@@ -1,10 +1,8 @@
 mod basic;
-mod lu;
-mod qr;
-mod cholesky;
+mod decompose;
 mod solve;
+mod error;
 
 pub use basic::*;
-pub use lu::*;
-pub use cholesky::*;
 pub use solve::*;
+pub use decompose::*;

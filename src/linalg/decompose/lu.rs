@@ -1,4 +1,4 @@
-use crate::{FloatDType, Matrix, Result, ToMatrixView, ToVectorView, Vector};
+use crate::{FloatDType, Matrix, NumDType, Result, ToMatrixView, ToVectorView, Vector};
 
 /// Solve linear equaltion $A x = Y$
 pub fn lu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
@@ -9,6 +9,12 @@ where
 {
     let (l, u) = lu(a)?;
     luy_solve(l, u, y)
+}
+
+pub struct LuDecomp<T: NumDType> {
+    pub l: Matrix<T>,
+    pub u: Matrix<T>,
+    pub perm: Matrix<T>,
 }
 
 pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matrix<T>)> {
@@ -74,7 +80,6 @@ where
 
     Ok(x)
 }
-
 
 #[cfg(test)]
 mod test {

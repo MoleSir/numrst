@@ -106,6 +106,15 @@ impl<T: WithDType> Vector<T> {
         self.storage.set_unchecked(storage_index, value);
     }
 
+    pub fn copy(&self) -> Vector<T> {
+        let data: Vec<_> = self.iter().collect();
+        let storage = StorageArc::new(Storage::new(data));
+        Self {
+            storage,
+            layout: VectorLayout::contiguous(self.len())
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.layout.len
     }
@@ -150,6 +159,17 @@ impl<'a, T: WithDType> VectorView<'a, T> {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn copy(&self) -> Vector<T> {
+        let data: Vec<_> = (0..self.len)
+            .into_iter().map(|index| self.storage.get_unchecked(index * self.stride))
+            .collect();
+        let storage = StorageArc::new(Storage::new(data));
+        Vector {
+            storage,
+            layout: VectorLayout::contiguous(self.len)
+        }
     }
 
     #[inline]

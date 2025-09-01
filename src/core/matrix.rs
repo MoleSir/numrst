@@ -41,6 +41,7 @@ impl<T: NumDType> Matrix<T> {
 
     pub fn add_assign(&self, row: usize, col: usize, value: T) -> Result<()> {
         let index = self.layout.get_storage_index(row, col)?;
+
         let mut storage = self.storage.write();
         let data = storage.data_mut(); 
         data[index] += value;
@@ -88,7 +89,7 @@ impl<T: WithDType> Matrix<T> {
 
     pub fn get(&self, row: usize, col: usize) -> Result<T> {
         let index = self.layout.get_storage_index(row, col)?;
-        Ok(self.storage.read().data()[index])
+        Ok(self.storage.get_unchecked(index))
     }
 
     /// Uncheck `get`
@@ -185,6 +186,17 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
             None
         } else {
             Some(self.storage.get_unchecked(self.storage_index(row, col)))
+        }
+    }
+
+    pub fn copy(&self) -> Matrix<T> {
+        let data: Vec<_> = (0..self.row_size() * self.col_size()).into_iter()
+            .map(|index| self.storage.get_unchecked(index * self.col_stride()))
+            .collect();
+        let storage = Storage::new(data);
+        Matrix {
+            storage: StorageArc::new(storage),
+            layout: MatrixLayout::contiguous(self.row_size(), self.col_size())
         }
     }
 

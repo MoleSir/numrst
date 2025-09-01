@@ -88,6 +88,9 @@ pub trait NumDType :
   + std::iter::Sum
   + std::iter::Product
   + std::ops::AddAssign
+  + std::ops::SubAssign
+  + std::ops::MulAssign
+  + std::ops::DivAssign
 {
     type Category: NumCategory;
 

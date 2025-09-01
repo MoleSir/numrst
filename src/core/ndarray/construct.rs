@@ -132,6 +132,16 @@ impl<T: NumDType> NdArray<T> {
         let storage = Storage::new(vec);
         Ok(Self::from_storage(storage, (size, size)))
     }
+
+    pub fn diag(diag: &[T]) -> Result<Self> {
+        let size = diag.len();
+        let mut vec = vec![T::zero(); size * size];
+        for n in 0..size {
+            vec[n * size + n] = diag[n];
+        }
+        let storage = Storage::new(vec);
+        Ok(Self::from_storage(storage, (size, size)))
+    }
 }
 
 impl<T: WithDType + rand_distr::uniform::SampleUniform> NdArray<T> 

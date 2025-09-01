@@ -53,24 +53,49 @@ impl<T: WithDType> Storage<T> {
         Self(data.into())
     }
 
+    #[inline]
     pub fn data(&self) -> &[T] {
         &self.0
     }
 
+    #[inline]
     pub fn data_mut(&mut self) -> &mut [T] {
         &mut self.0
     }
 
+    #[inline]
     pub fn dtype(&self) -> DType {
         T::DTYPE
     }
 
+    #[inline]
     pub fn copy_data(&self) -> Vec<T> {
         self.0.clone()
     }
 
+    #[inline]
     pub fn get(&self, index: usize) -> Option<T> {
         self.0.get(index).copied()
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, index: usize) -> T {
+        self.0[index]
+    }
+
+    #[inline]
+    pub fn set(&mut self, index: usize, value: T) -> Option<()> {
+        if index >= self.len() {
+            None
+        } else {
+            self.0[index] = value;
+            Some(())
+        }
+    }
+
+    #[inline]
+    pub fn set_unchecked(&mut self, index: usize, value: T) {
+        self.0[index] = value;
     }
 
     pub fn len(&self) -> usize {
@@ -96,7 +121,6 @@ impl<T: WithDType> Storage<T> {
     }
 }
 
-
 #[derive(Clone)]
 pub struct StorageArc<T>(pub(crate) Arc<RwLock<Storage<T>>>);
 
@@ -117,27 +141,22 @@ impl<T: WithDType> StorageArc<T> {
 
     #[inline]
     pub fn get(&self, index: usize) -> Option<T> {
-        self.write().data().get(index).copied()
+        self.read().get(index)
     }
 
     #[inline]
     pub fn set(&mut self, index: usize, val: T) -> Option<()> {
-        if index >= self.read().data().len() {
-            None
-        } else {
-            self.set_unchecked(index, val);
-            Some(())
-        }
+        self.write().set(index, val)
     }
 
     #[inline]
     pub fn get_unchecked(&self, index: usize) -> T {
-        self.write().data()[index]
+        self.read().get_unchecked(index)
     }
 
     #[inline]
     pub fn set_unchecked(&self, index: usize, val: T) {
-        self.write().data_mut()[index] = val;
+        self.write().set_unchecked(index, val)
     }
 
     #[inline]
@@ -151,7 +170,6 @@ impl<T: WithDType> StorageArc<T> {
     }
 }
 
-// pub struct StorageRef<'a, T>(std::sync::MappedRwLockReadGuard<'a, [T]>);
 pub enum  StorageRef<'a, T> {
     Guard(std::sync::MappedRwLockReadGuard<'a, [T]>),
     Slice(&'a [T]),

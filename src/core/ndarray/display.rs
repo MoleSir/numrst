@@ -14,11 +14,12 @@ impl<T: WithDType> fmt::Display for NdArray<T> {
             return write!(f, "{}", self.to_scalar().unwrap());
         }
 
-        let impl_ref = &self.0;
         let shape = self.dims();
         assert!(!shape.is_empty());
 
-        fmt_ndarray(f, &*impl_ref.storage.0.read().unwrap().data(), shape)
+        let storage = self.0.storage.read();
+
+        fmt_ndarray(f, storage.data(), shape)
     }
 }
 
