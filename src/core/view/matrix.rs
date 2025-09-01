@@ -52,6 +52,30 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         }
     }
 
+    pub fn transpose(&'a self) -> Self {
+        Self {
+            shape: (self.col_size(), self.row_size()),
+            strides: (self.col_stride(), self.row_stride()),
+            storage: self.storage.clone()
+        }
+    }
+
+    pub fn eqal(&self, other: &Self) -> bool {
+        if self.shape() != other.shape() {
+            false 
+        } else {
+            // TODO: iter
+            for i in 0..self.row_size() {
+                for j in 0..self.col_size() {
+                    if self.g(i, j) != other.g(i, j) {
+                        return false;
+                    }
+                }
+            }
+            true
+        }
+    }
+
     pub fn is_square(&self) -> bool {
         let (m, n) = self.shape();
         m == n 

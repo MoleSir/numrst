@@ -9,9 +9,6 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// This implementation only computes the lower triangular factor `L`.
 /// The upper triangular factor can be obtained as `L^T`.
 ///
-/// # Type Parameters
-/// - `T`: The floating-point data type. Must implement `FloatDType`.
-///
 /// # Parameters
 /// - `arr`: The input matrix `A` to decompose. Must be symmetric and positive-definite.
 ///

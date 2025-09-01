@@ -9,10 +9,6 @@ use crate::{FloatDType, NdArray, Result};
 /// This implementation uses **Householder reflections**, which are numerically
 /// stable and suitable for both square and rectangular matrices.
 ///
-/// # Type Parameters
-/// - `T`: The floating-point data type. Must implement `FloatDType`.
-/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
-///
 /// # Parameters
 /// - `a`: The input matrix `A` to decompose. Can be rectangular (`m x n`).
 ///

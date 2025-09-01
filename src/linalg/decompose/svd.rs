@@ -1,5 +1,54 @@
 use rand_distr::{Distribution, StandardNormal};
-use crate::{linalg, FloatDType, NdArray, Result};
+use crate::{linalg, FloatDType, IndexOp, NdArray, Result};
+
+pub fn svd<T: FloatDType>(a: &NdArray<T>, tol: T) -> Result<(NdArray<T>, Vec<T>, NdArray<T>)> {
+    let (m, n) = a.dims2()?;
+    
+    if m >= n {
+        // 1. 对 A^T A 求特征分解
+        let ata = a.transpose_last()?.matmul(a)?; // (n, n)
+        let eig_res = linalg::eig_jacobi(&ata, tol)?;    // 对称矩阵
+        let v = eig_res.eig_vectors;             // (n, n)
+        let s: Vec<T> = eig_res.eig_values.iter().map(|&x| x.sqrt()).collect();
+
+        // 2. 计算 U
+        let mut u_cols = Vec::with_capacity(n);
+        for j in 0..n {
+            // let vj = v.slice_col(j)?;              // V 的第 j 列
+            let vj = v.index((.., j))?;
+            let av = linalg::mat_mul_vec(&a, &vj)?;               // A v_j
+            let sigma = s[j];
+            if sigma != T::zero() {
+                u_cols.push(av.div(sigma)?);      // u_j = A v_j / sigma
+            } else {
+                // sigma=0 时，补充任意正交向量
+                u_cols.push(NdArray::<T>::zeros((m,))?);
+            }
+        }
+        let u = NdArray::stack(&u_cols, 1)?;   // (m, n)
+        Ok((u, s, v))
+    } else {
+        // m < n 时，对 A A^T 求特征分解，然后类似方法计算 V
+        let aat = a.matmul(&a.transpose_last()?)?; // (m, m)
+        let eig_res = linalg::eig_jacobi(&aat, tol)?;
+        let u = eig_res.eig_vectors;               // (m, m)
+        let s: Vec<T> = eig_res.eig_values.iter().map(|&x| x.sqrt()).collect();
+
+        let mut v_cols = Vec::with_capacity(m);
+        for i in 0..m {
+            let ui = u.index((.., i))?;
+            let atu = linalg::mat_mul_vec(&a.transpose_last()?, &ui)?;
+            let sigma = s[i];
+            if sigma != T::zero() {
+                v_cols.push(atu.div(sigma)?);
+            } else {
+                v_cols.push(NdArray::<T>::zeros((n,))?);
+            }
+        }
+        let v = NdArray::stack(&v_cols, 1)?;   // (n, m)
+        Ok((u, s, v))
+    }
+}
 
 pub fn svd_lowrank<T: FloatDType>(a: &NdArray<T>, num_iters: usize) -> Result<(Vec<NdArray<T>>, Vec<T>, Vec<NdArray<T>>)> 
 where 
@@ -66,4 +115,81 @@ where
     let eig_vector = b;
 
     Ok((eig_value, eig_vector.squeeze(1)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::NdArray;
+
+    fn check_orthogonal<T: FloatDType>(mat: &NdArray<T>, tol: T) -> bool {
+        let mat_t = mat.transpose_last().unwrap();
+        let prod = mat_t.matmul(mat).unwrap();
+        let n = prod.dims2().unwrap().0;
+        let id = NdArray::<T>::eye(n).unwrap();
+        prod.allclose(&id, tol.to_f64(), tol.to_f64())
+    }
+
+    #[test]
+    fn test_svd_identity() {
+        let a = NdArray::<f64>::eye(3).unwrap();
+        let (u, s, v) = svd(&a, 1e-12).unwrap();
+
+        // 检查奇异值
+        for &sigma in s.iter() {
+            assert!((sigma - 1.0).abs() < 1e-10);
+        }
+
+        // 检查重构
+        let sigma = NdArray::diag(&s).unwrap();
+        let rec = u.matmul(&sigma).unwrap().matmul(&v.transpose_last().unwrap()).unwrap();
+        assert!(rec.allclose(&a, 1e-10, 1e-10));
+
+        // 检查正交性
+        assert!(check_orthogonal(&u, 1e-10));
+        assert!(check_orthogonal(&v, 1e-10));
+    }
+
+    #[test]
+    fn test_svd_diagonal_matrix() {
+        let a = NdArray::new(&[
+            [3.0, 0.0, 0.0],
+            [0.0, 5.0, 0.0],
+            [0.0, 0.0, 2.0],
+        ]).unwrap();
+
+        let (u, s, v) = svd(&a, 1e-12).unwrap();
+        let sigma = NdArray::diag(&s).unwrap();
+        let rec = u.matmul(&sigma).unwrap().matmul(&v.transpose_last().unwrap()).unwrap();
+        assert!(rec.allclose(&a, 1e-10, 1e-10));
+
+        assert!(check_orthogonal(&u, 1e-10));
+        assert!(check_orthogonal(&v, 1e-10));
+    }
+
+    #[test]
+    fn test_svd_rectangular_matrix_m_gt_n() {
+        let a = NdArray::<f64>::randn(0.0, 1.0, (5, 3)).unwrap();
+        let (u, s, v) = svd(&a, 1e-10).unwrap();
+
+        let sigma = NdArray::diag(&s).unwrap();
+        let rec = u.matmul(&sigma).unwrap().matmul(&v.transpose_last().unwrap()).unwrap();
+        assert!(rec.allclose(&a, 1e-6, 1e-6));
+
+        assert!(check_orthogonal(&u, 1e-6));
+        assert!(check_orthogonal(&v, 1e-6));
+    }
+
+    #[test]
+    fn test_svd_rectangular_matrix_m_lt_n() {
+        let a = NdArray::<f64>::randn(0.0, 1.0, (3, 5)).unwrap();
+        let (u, s, v) = svd(&a, 1e-10).unwrap();
+
+        let sigma = NdArray::diag(&s).unwrap();
+        let rec = u.matmul(&sigma).unwrap().matmul(&v.transpose_last().unwrap()).unwrap();
+        assert!(rec.allclose(&a, 1e-6, 1e-6));
+
+        assert!(check_orthogonal(&u, 1e-6));
+        assert!(check_orthogonal(&v, 1e-6));
+    }
 }

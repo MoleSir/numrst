@@ -42,4 +42,7 @@ pub enum LinalgError {
 
     #[error("expect a positive definite matrix in {op}")]
     ExpectPositiveDefiniteMatrix { op: &'static str },
+
+    #[error("expect a symmetric matrix in {op}")]
+    ExpectSymmetricMatrix { op: &'static str },
 }

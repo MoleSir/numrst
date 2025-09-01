@@ -10,10 +10,6 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// with `LinalgError::SingularMatrix` if the matrix is singular or nearly singular,
 /// i.e., when a pivot element is too close to zero.
 ///
-/// # Type Parameters
-/// - `T`: The floating-point data type. Must implement `FloatDType`.
-/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
-///
 /// # Parameters
 /// - `mat`: The input matrix `A` to decompose.
 ///
@@ -91,10 +87,6 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
 /// by reordering rows to avoid zero pivots. However, if an entire column is zero,
 /// the decomposition will still produce zeros in `U` and may not yield a unique solution
 /// when used to solve linear systems.
-///
-/// # Type Parameters
-/// - `T`: The floating-point data type. Must implement `FloatDType`.
-/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
 ///
 /// # Parameters
 /// - `mat`: The input matrix `A` to decompose.

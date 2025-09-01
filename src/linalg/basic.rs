@@ -145,6 +145,22 @@ pub fn is_square<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
     Ok(m == n)
 }
 
+pub fn is_symmetric<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
+    let mat = mat.matrix_view()?;
+    let mat_trans = mat.transpose();
+    Ok(mat.eqal(&mat_trans))
+}
+
+pub fn check_square<T: NumDType>(mat: &NdArray<T>, op: &'static str) -> Result<()> {
+    let mat = mat.matrix_view()?;
+    let (m, n) = mat.shape();
+    if m != n {
+        Err(LinalgError::ExpectMatrixSquare { shape: mat.shape(), op })?
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::{NdArray, linalg};
