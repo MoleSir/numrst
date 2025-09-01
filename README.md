@@ -42,7 +42,10 @@ It provides a rich set of numerical operations, including broadcasting, indexing
   - Support operate with .npy and .npz
   - Custom file format .nrst and .nrsz
 
-
+- Linear algebra:
+  - basic: `dot`, `matmul`, `trace`
+  - decompose: lu, qr, cholesky
+  - solve: lu, qr, cholesky
 
 ## Quick Start
 

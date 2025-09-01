@@ -1,21 +1,4 @@
-use crate::{FloatDType, Matrix, NumDType, Result, ToMatrixView, ToVectorView, Vector};
-
-/// Solve linear equaltion $A x = Y$
-pub fn lu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
-where 
-    T: FloatDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let (l, u) = lu(a)?;
-    luy_solve(l, u, y)
-}
-
-pub struct LuDecomp<T: NumDType> {
-    pub l: Matrix<T>,
-    pub u: Matrix<T>,
-    pub perm: Matrix<T>,
-}
+use crate::{FloatDType, Matrix, Result, ToMatrixView, ToVectorView, Vector};
 
 pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matrix<T>)> {
     let mat = mat.to_matrix_view()?;
@@ -43,13 +26,15 @@ pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matri
     Ok((l, u))
 }
 
-fn luy_solve<T, M1, M2, V>(l: M1, u: M2, y: V) -> Result<Vector<T>> 
+/// Solve linear equaltion $A x = Y$
+pub fn lu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
 where 
     T: FloatDType,
-    M1: ToMatrixView<T>,
-    M2: ToMatrixView<T>,
+    M: ToMatrixView<T>,
     V: ToVectorView<T>,
 {
+    let (l, u) = lu(a)?;
+
     let l = l.to_matrix_view()?;
     let u = u.to_matrix_view()?;
     let y = y.to_vector_view()?;
@@ -83,7 +68,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::{linalg::lu_solve, NdArray};
+    use crate::{NdArray, linalg};
 
     #[test]
     fn test_lu() {
@@ -92,7 +77,7 @@ mod test {
             [4., 7., 3.],
             [6., 18., 5.],
         ]).unwrap();
-        let (l, u) = crate::linalg::lu(&arr).unwrap();
+        let (l, u) = linalg::lu(&arr).unwrap();
         let l = l.to_ndarray();
         let u = u.to_ndarray();
         let arr_rec = l.matmul(&u).unwrap();
@@ -106,7 +91,7 @@ mod test {
             [4., 7., 3.],
             [6., 18., 5.],
         ]).unwrap();
-        let (l, u) = crate::linalg::lu(&arr).unwrap();
+        let (l, u) = linalg::lu(&arr).unwrap();
         let l = l.to_ndarray();
         let u = u.to_ndarray();
         let arr_rec = l.matmul(&u).unwrap();
@@ -114,22 +99,9 @@ mod test {
     }
 
     #[test]
-    fn test_lu_solve_simple() {
-        let a = NdArray::new(&[
-            [3., 1.],
-            [1., 2.],
-        ]).unwrap();
-        let y = NdArray::from_vec([9., 8.].to_vec(), 2).unwrap();
-
-        let x = lu_solve(&a, &y).unwrap();
-        let expected = NdArray::from_vec([2., 3.].to_vec(), 2).unwrap();
-        assert!(x.to_ndarray().allclose(&expected, 1e-6, 1e-6));
-    }
-
-    #[test]
     fn test_lu_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let (l, u) = crate::linalg::lu(&a).unwrap();
+        let (l, u) = linalg::lu(&a).unwrap();
         let l = l.to_ndarray();
         let u = u.to_ndarray();
         let rec = l.matmul(&u).unwrap();
@@ -143,8 +115,25 @@ mod test {
             [4., 5., 6.],
             [7., 8., 10.],
         ]).unwrap();
-        let (l, u) = crate::linalg::lu(&a).unwrap();
+        let (l, u) = linalg::lu(&a).unwrap();
         let rec = l.to_ndarray().matmul(&u.to_ndarray()).unwrap();
         assert!(rec.allclose(&a, 1e-6, 1e-6));
+    }
+
+    #[test]
+    fn test_lu_solve_simple() {
+        let a = NdArray::new(&[
+            [3., 1.],
+            [1., 2.],
+        ]).unwrap();
+        let y = NdArray::from_vec([9., 8.].to_vec(), 2).unwrap();
+
+        let x = linalg::lu_solve(&a, &y).unwrap();
+        let expected = NdArray::from_vec([2., 3.].to_vec(), 2).unwrap();
+        assert!(x.to_ndarray().allclose(&expected, 1e-6, 1e-6));
+
+        let expected = a.matmul(&x.to_ndarray().unsqueeze(1).unwrap()).unwrap().squeeze(1).unwrap();
+        assert!(y.allclose(&expected, 1e-6, 1e-6));
+
     }
 }

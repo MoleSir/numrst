@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{Dim, Error, Layout, Result, Shape, Storage, WithDType};
+use crate::{Dim, Error, Layout, Result, Shape, Storage, WithDType, D};
 
 use super::{NdArray, NdArrayId, NdArrayImpl, Range};
 
@@ -210,6 +210,10 @@ impl<T: WithDType> NdArray<T> {
             layout: self.layout().transpose(dim1, dim2)?,
         };
         Ok(NdArray(Arc::new(tensor_)))
+    }
+
+    pub fn transpose_last(&self) -> Result<Self> {
+        self.transpose(D::Minus1, D::Minus2)
     }
 
     /// Concatenates two or more tensors along a particular dimension.

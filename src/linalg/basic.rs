@@ -1,26 +1,4 @@
-use crate::{Error, Matrix, NdArray, NumDType, Result, ToMatrixView, ToVectorView};
-
-pub enum Norm {
-    Fro,         // Frobenius 
-    Inf,         // ∞ 
-    NegInf,      // -∞ 
-    P(f64),      // p
-}
-
-pub fn norm<T: NumDType>(array: &NdArray<T>, ord: Norm) -> f64 {
-    match ord {
-        Norm::Fro | Norm::P(2.0) => {
-            array.iter()
-                .map(|x| x.to_f64().powi(2))
-                .sum::<f64>()
-                .sqrt()
-        }
-        Norm::P(1.0) => array.iter().map(|x| x.to_f64().abs()).sum(),
-        Norm::P(p) => array.iter().map(|x| x.to_f64().abs().powf(p)).sum::<f64>().powf(1.0 / p),
-        Norm::Inf => array.iter().map(|x| x.to_f64().abs()).fold(0.0, f64::max),
-        Norm::NegInf => array.iter().map(|x| x.to_f64().abs()).fold(f64::INFINITY, f64::min),
-    }
-}
+use crate::{Error, Matrix, NumDType, Result, ToMatrixView, ToVectorView};
 
 pub fn dot<T, V1, V2>(a: V1, b: V2) -> Result<T> 
 where 
@@ -127,5 +105,74 @@ mod test {
         let b = NdArray::new(&[4., 5.]).unwrap();
         let res = linalg::dot(&a, &b);
         assert!(res.is_err());
+    }
+
+
+    #[test]
+    fn test_matmul_basic() {
+        let a = NdArray::new(&[
+            [1., 2.],
+            [3., 4.],
+        ]).unwrap();
+        let b = NdArray::new(&[
+            [5., 6.],
+            [7., 8.],
+        ]).unwrap();
+
+        let c = linalg::matmul(&a, &b).unwrap();
+        let expected = NdArray::new(&[
+            [19., 22.],
+            [43., 50.],
+        ]).unwrap();
+
+        assert!(c.to_ndarray().allclose(&expected, 1e-6, 1e-6));
+    }
+
+    #[test]
+    fn test_matmul_incompatible() {
+        let a = NdArray::new(&[[1., 2.]]).unwrap(); // 1x2
+        let b = NdArray::new(&[[3., 4.], [5., 6.], [7., 8.]]).unwrap(); // 3x2
+        let res = linalg::matmul(&a, &b);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_trace_square() {
+        let a = NdArray::new(&[
+            [1., 2.],
+            [3., 4.],
+        ]).unwrap();
+        let t = linalg::trace(&a).unwrap();
+        assert_eq!(t, 1. * 4.); // 注意 trace 是 sum 对角线，如果你之前实现是 sum，这里要改
+    }
+
+    #[test]
+    fn test_trace_non_square() {
+        let a = NdArray::new(&[
+            [1., 2., 3.],
+            [4., 5., 6.],
+        ]).unwrap();
+        let t = linalg::trace(&a);
+        assert!(t.is_err());
+    }
+
+    #[test]
+    fn test_is_square_true() {
+        let a = NdArray::new(&[
+            [1., 2.],
+            [3., 4.],
+        ]).unwrap();
+        let res = linalg::is_square(&a).unwrap();
+        assert!(res);
+    }
+
+    #[test]
+    fn test_is_square_false() {
+        let a = NdArray::new(&[
+            [1., 2., 3.],
+            [4., 5., 6.],
+        ]).unwrap();
+        let res = linalg::is_square(&a).unwrap();
+        assert!(!res);
     }
 }
