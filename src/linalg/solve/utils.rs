@@ -1,15 +1,9 @@
-use crate::{linalg::LinalgError, FloatDType, MatrixView, Result, ToMatrixView, ToVectorView, VectorView};
-
+use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 
 /// Check a is square, and y has same len with a 
-pub fn check_solve_arg<'a, T, M, V>(a: &'a M, y: &'a V) -> Result<(MatrixView<'a, T>, VectorView<'a, T>)> 
-where 
-    T: FloatDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let a = a.to_matrix_view()?;
-    let y = y.to_vector_view()?;
+pub fn check_solve_arg<'a, T: FloatDType>(a: &'a NdArray<T>, y: &'a NdArray<T>) -> Result<()> {
+    let a = a.matrix_view()?;
+    let y = y.vector_view()?;
     // Check size
     let (m, n) = a.shape();
     if m != n {
@@ -19,5 +13,5 @@ where
         Err(LinalgError::SolveOutputLenMismatch(m, y.len()))?;
     }
 
-    Ok((a, y))
+    Ok(())
 }

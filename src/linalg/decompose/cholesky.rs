@@ -1,4 +1,4 @@
-use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
+use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 
 /// Computes the Cholesky decomposition of a matrix `A`.
 ///
@@ -11,10 +11,9 @@ use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 ///
 /// # Type Parameters
 /// - `T`: The floating-point data type. Must implement `FloatDType`.
-/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
 ///
 /// # Parameters
-/// - `mat`: The input matrix `A` to decompose. Must be symmetric and positive-definite.
+/// - `arr`: The input matrix `A` to decompose. Must be symmetric and positive-definite.
 ///
 /// # Returns
 /// - `L`: where `L` is a lower triangular matrix such that `A = L * L^T`.
@@ -38,34 +37,38 @@ use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 /// let l = linalg::cholesky(&a).unwrap();
 /// // Now a ≈ L * L^T
 /// ```
-pub fn cholesky<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<Matrix<T>> {
-    let mat = mat.to_matrix_view()?;
+pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<NdArray<T>> {
+    let mat = arr.matrix_view()?;
     let (n, _) = mat.shape();
-    let l = Matrix::<T>::zeros(n, n)?;
+    let l_arr = NdArray::<T>::zeros(mat.shape())?;
 
-    for i in 0..n {
-        // diag
-        let mut sum = T::zero();
-        for k in 0..i {
-            sum = sum + l.g(i, k) * l.g(i, k);
-        }
-        let diag = mat.g(i, i) - sum;
-        if diag <= T::zero() {
-            return Err(LinalgError::ExpectPositiveDefiniteMatrix { op: "cholesky" })?;
-        }
-        l.s(i, i, diag.sqrt());
-
-        // below diag
-        for j in i+1..n {
+    {
+        let mut l = l_arr.matrix_view_mut().unwrap();
+        for i in 0..n {
+            // diag
             let mut sum = T::zero();
             for k in 0..i {
-                sum = sum + l.g(j, k) * l.g(i, k);
+                sum = sum + l.g(i, k) * l.g(i, k);
             }
-            l.s(j, i, (mat.g(j, i) - sum) / l.g(i, i));
+            let diag = mat.g(i, i) - sum;
+            if diag <= T::zero() {
+                return Err(LinalgError::ExpectPositiveDefiniteMatrix { op: "cholesky" })?;
+            }
+            l.s(i, i, diag.sqrt());
+    
+            // below diag
+            for j in i+1..n {
+                let mut sum = T::zero();
+                for k in 0..i {
+                    sum = sum + l.g(j, k) * l.g(i, k);
+                }
+                l.s(j, i, (mat.g(j, i) - sum) / l.g(i, i));
+            }
         }
+    
     }
 
-    Ok(l)
+    Ok(l_arr)
 }
 
 #[cfg(test)]
@@ -82,7 +85,6 @@ mod test {
         ]).unwrap();
 
         let l = linalg::cholesky(&a).unwrap();
-        let l = l.to_ndarray();
         // println!("{}", l);
 
         let a_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
@@ -92,7 +94,7 @@ mod test {
     #[test]
     fn test_cholesky_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let l = linalg::cholesky(&a).unwrap().to_ndarray();
+        let l = linalg::cholesky(&a).unwrap();
         // println!("{}", l);
         let rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
         assert!(rec.allclose(&a, 1e-6, 1e-6));
@@ -107,7 +109,7 @@ mod test {
         ]).unwrap();
         let a = b.matmul(&b.transpose_last().unwrap()).unwrap();
 
-        let l = linalg::cholesky(&a).unwrap().to_ndarray();
+        let l = linalg::cholesky(&a).unwrap();
         // println!("{}", l);
         let a_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
         assert!(a_rec.allclose(&a, 1e-6, 1e-6));
@@ -131,7 +133,6 @@ mod test {
         let h = a.matmul(&a.transpose_last().unwrap()).unwrap();
         
         let l = linalg::cholesky(&h).unwrap();
-        let l = l.to_ndarray();
         // println!("{}", l);
         let h_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
         assert!(h_rec.allclose(&h, 1e-6, 1e-6));

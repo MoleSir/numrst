@@ -1,15 +1,16 @@
-use crate::{Matrix, NumDType, Result, ToMatrixView, ToVectorView, Vector};
-
+use crate::{FloatDType, NdArray, NumDType, Result};
 use super::LinalgError;
 
-pub fn dot<T, V1, V2>(a: V1, b: V2) -> Result<T> 
-where 
-    T: NumDType,
-    V1: ToVectorView<T>,
-    V2: ToVectorView<T>,
-{
-    let a = a.to_vector_view()?;
-    let b = b.to_vector_view()?;
+pub fn norm<T: FloatDType>(m: &NdArray<T>) -> T {
+    let sum = m.iter()
+        .map(|v| v.powi(2))
+        .sum::<T>();
+    sum.sqrt()
+}
+
+pub fn dot<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<T> {
+    let a = a.vector_view()?;
+    let b = b.vector_view()?;
 
     if a.len() != b.len() {
         Err(LinalgError::VectorLenMismatch { len1: a.len(), len2: b.len(), op: "dot" })?;
@@ -19,14 +20,31 @@ where
     Ok(result)
 }
 
-pub fn matmul<T, M1, M2>(a: M1, b: M2) -> Result<Matrix<T>> 
-where 
-    T: NumDType,
-    M1: ToMatrixView<T>,
-    M2: ToMatrixView<T>,
-{
-    let a = a.to_matrix_view()?;
-    let b = b.to_matrix_view()?; 
+pub fn outer<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>> {
+    let a = a.vector_view()?;
+    let b = b.vector_view()?;
+
+    let m = a.len();
+    let n = b.len();
+
+    let res_arr = NdArray::zeros((m, n))?;
+    {
+        let mut res = res_arr.matrix_view_mut().unwrap();
+        for i in 0..m {
+            for j in 0..n {
+                let v = a.g(i) * b.g(j);
+                res.s(i, j, v);
+            }
+        }
+    }
+
+    Ok(res_arr)
+}
+
+
+pub fn matmul<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>> {
+    let a = a.matrix_view()?;
+    let b = b.matrix_view()?; 
 
     let (m, k1) = a.shape();
     let (k2, n) = b.shape();
@@ -36,28 +54,26 @@ where
     }
     let z = k1;
 
-    let res = Matrix::<T>::zeros(m, n)?;
-    for i in 0..m {
-        for j in 0..n {
-            let mut sum = T::zero();
-            for k in 0..z {
-                sum += a.g(i, k) * b.g(k, j);
+    let res_arr = NdArray::<T>::zeros((m, n))?;
+    {
+        let mut res = res_arr.matrix_view_mut().unwrap();
+        for i in 0..m {
+            for j in 0..n {
+                let mut sum = T::zero();
+                for k in 0..z {
+                    sum += a.g(i, k) * b.g(k, j);
+                }
+                res.s(i, j, sum);
             }
-            res.s(i, j, sum);
         }
     }
 
-    Ok(res)
+    Ok(res_arr)
 }
 
-pub fn mat_mul_vec<T, M, V>(mat: M, vec: V) -> Result<Vector<T>> 
-where 
-    T: NumDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let mat = mat.to_matrix_view()?;
-    let vec = vec.to_vector_view()?;
+pub fn mat_mul_vec<T: NumDType>(mat: &NdArray<T>, vec: &NdArray<T>) -> Result<NdArray<T>> {
+    let mat = mat.matrix_view()?;
+    let vec = vec.vector_view()?;
 
     let (m, k1) = mat.shape();
     let k2 = vec.len();
@@ -67,26 +83,24 @@ where
     }
     let k = k1; // (m, k) @ (k) = (m)
 
-    let res = Vector::<T>::zeros(m)?;
-    for i in 0..m {
-        let mut sum = T::zero();
-        for j in 0..k {
-            sum += mat.g(i, j) * vec.g(j);
+    let res_arr = NdArray::<T>::zeros(m)?;
+    {
+        let mut res = res_arr.vector_view_mut().unwrap();
+        for i in 0..m {
+            let mut sum = T::zero();
+            for j in 0..k {
+                sum += mat.g(i, j) * vec.g(j);
+            }
+            res.s(i, sum);
         }
-        res.s(i, sum);
     }
 
-    Ok(res)
+    Ok(res_arr)
 }
 
-pub fn vec_mul_mat<T, M, V>(vec: V, mat: M) -> Result<Vector<T>> 
-where 
-    T: NumDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let vec = vec.to_vector_view()?;
-    let mat = mat.to_matrix_view()?;
+pub fn vec_mul_mat<T: FloatDType>(vec: &NdArray<T>, mat: &NdArray<T>) -> Result<NdArray<T>> {
+    let vec = vec.vector_view()?;
+    let mat = mat.matrix_view()?;
 
     let k1 = vec.len();
     let (k2, n) = mat.shape();
@@ -96,20 +110,23 @@ where
     }
     let k = k1; // (1, k) @ (k, n) = (1, n)
 
-    let res = Vector::<T>::zeros(n)?;
-    for i in 0..n {
-        let mut sum = T::zero();
-        for j in 0..k {
-            sum += vec.g(j) * mat.g(j, i);
+    let res_arr = NdArray::<T>::zeros(n)?;
+    {
+        let mut res = res_arr.vector_view_mut().unwrap();
+        for i in 0..n {
+            let mut sum = T::zero();
+            for j in 0..k {
+                sum += vec.g(j) * mat.g(j, i);
+            }
+            res.s(i, sum);
         }
-        res.s(i, sum);
     }
 
-    Ok(res)
+    Ok(res_arr)
 }
 
-pub fn trace<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<T> {
-    let mat = mat.to_matrix_view()?;
+pub fn trace<T: NumDType>(mat: &NdArray<T>) -> Result<T> {
+    let mat = mat.matrix_view()?;
     let (m, n) = mat.shape();
     if m != n {
         Err(LinalgError::ExpectMatrixSquare { shape: mat.shape(), op: "trace" })?;
@@ -122,8 +139,8 @@ pub fn trace<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<T> {
     Ok(t)
 }
 
-pub fn is_square<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<bool> {
-    let mat = mat.to_matrix_view()?;
+pub fn is_square<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
+    let mat = mat.matrix_view()?;
     let (m, n) = mat.shape();
     Ok(m == n)
 }
@@ -184,7 +201,7 @@ mod test {
             [43., 50.],
         ]).unwrap();
 
-        assert!(c.to_ndarray().allclose(&expected, 1e-6, 1e-6));
+        assert!(c.allclose(&expected, 1e-6, 1e-6));
     }
 
     #[test]

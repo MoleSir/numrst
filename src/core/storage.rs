@@ -171,30 +171,29 @@ impl<T: WithDType> StorageArc<T> {
 
     #[inline]
     pub fn get_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
-        StorageMut(std::sync::RwLockWriteGuard::map(self.0.write().unwrap(), |s| &mut s.data_mut()[start_offset..]))
+        StorageMut::Guard(std::sync::RwLockWriteGuard::map(self.0.write().unwrap(), |s| &mut s.data_mut()[start_offset..]))
     }
 }
 
-pub enum  StorageRef<'a, T> {
+pub enum StorageRef<'a, T> {
     Guard(std::sync::MappedRwLockReadGuard<'a, [T]>),
     Slice(&'a [T]),
 }
 
-pub struct StorageMut<'a, T>(std::sync::MappedRwLockWriteGuard<'a, [T]>);
+// pub struct StorageMut<'a, T>(std::sync::MappedRwLockWriteGuard<'a, [T]>);
+
+pub enum StorageMut<'a, T> {
+    Guard(std::sync::MappedRwLockWriteGuard<'a, [T]>),
+    Slice(&'a mut[T]),
+}
 
 impl<'a, T: WithDType> StorageRef<'a, T> {
     pub fn clone(&'a self) -> Self {
-        match self {
-            Self::Guard(gurad) => Self::Slice(gurad),
-            Self::Slice(s) => Self::Slice(s),
-        }
+        Self::Slice(&self.data())
     }
 
     pub fn slice(&'a self, index: usize) -> Self {
-        match self {
-            Self::Guard(gurad) => Self::Slice(&gurad[index..]),
-            Self::Slice(s) => Self::Slice(&s[index..]),
-        }
+        Self::Slice(&self.data()[index..])
     }
 
     #[inline]
@@ -221,14 +220,35 @@ impl<'a, T: WithDType> StorageRef<'a, T> {
 }
 
 impl<'a, T: WithDType> StorageMut<'a, T> {
+    pub fn clone(&'a self) -> StorageRef<'a, T> {
+        StorageRef::Slice(self.data())
+    }
+
+    pub fn clone_mut(&'a mut self) -> Self {
+        Self::Slice(self.data_mut())
+    }
+
+    pub fn slice(&'a self, index: usize) -> StorageRef<'a, T> {
+        StorageRef::Slice(&self.data()[index..])
+    }
+
+    pub fn slice_mut(&'a mut self, index: usize) -> Self {
+        Self::Slice(&mut self.data_mut()[index..])
+    }
+
     #[inline]
     pub fn get(&self, index: usize) -> Option<T> {
-        self.0.get(index).copied()
+        self.data().get(index).copied()
+    }
+
+    #[inline]
+    pub fn get_unchecked(&self, index: usize) -> T {
+        self.data()[index]
     }
 
     #[inline]
     pub fn set(&mut self, index: usize, val: T) -> Option<()> {
-        if index >= self.0.len() {
+        if index >= self.len() {
             None
         } else {
             self.set_unchecked(index, val);
@@ -237,12 +257,26 @@ impl<'a, T: WithDType> StorageMut<'a, T> {
     }
 
     #[inline]
-    pub fn get_unchecked(&self, index: usize) -> T {
-        self.0[index]
+    pub fn set_unchecked(&mut self, index: usize, val: T) {
+        self.data_mut()[index] = val;
     }
 
     #[inline]
-    pub fn set_unchecked(&mut self, index: usize, val: T) {
-        self.0[index] = val;
+    pub fn len(&self) -> usize {
+        self.data().len()
+    }
+
+    pub fn data(&self) -> &[T] {
+        match self {
+            Self::Guard(gurad) => &gurad,
+            Self::Slice(s) => s,
+        }
+    }
+
+    pub fn data_mut(&mut self) -> &mut [T] {
+        match self {
+            Self::Guard(gurad) => &mut gurad[0..],
+            Self::Slice(s) => &mut s[0..],
+        }
     }
 }

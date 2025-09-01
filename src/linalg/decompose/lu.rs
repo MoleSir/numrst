@@ -1,4 +1,4 @@
-use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
+use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 
 /// Computes the LU decomposition of a matrix `A`.
 ///
@@ -38,39 +38,44 @@ use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 /// let (l, u) = linalg::lu(&a).unwrap();
 /// // Now a ≈ L * U
 /// ```
-pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matrix<T>)> {
-    let mat = mat.to_matrix_view()?;
+pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
+    let mat = arr.matrix_view()?;
     let (m, n) = mat.shape();
-    let l = Matrix::<T>::eye(m)?;
-    let u = Matrix::<T>::zeros(m, n)?;
-    let k = m.min(n); 
 
-    for i in 0..k {
-        // U
-        for j in i..n {
-            let sum = l.row(i)?.dot(&u.col(j)?)?; // (m,) dot (m,)
-            let arr_v = mat.g(i, j); // A[i, j]
-            u.s(i, j, arr_v - sum);
-        }
+    let l_arr = NdArray::<T>::eye(m)?;
+    let u_arr = NdArray::<T>::zeros((m, n))?;
+    let k = m.min(n);
 
-        // Check
-        let u_ii = u.g(i, i);
-        if u_ii.abs() <= T::epsilon() {
-            return Err(LinalgError::SingularMatrix)?;
-        }
-
-        // L
-        for j in i+1..m {
-            let sum = l.row(j)?.dot(&u.col(i)?)?;
-            let arr_v = mat.g(j, i);
-            let u_v = u.g(i, i);
-            l.s(j, i, (arr_v - sum) / u_v);
+    {
+        let mut l = l_arr.matrix_view_mut()?;
+        let mut u = u_arr.matrix_view_mut()?;
+    
+        for i in 0..k {
+            // U
+            for j in i..n {
+                let sum = l.row(i)?.dot(&u.col(j)?)?; // (m,) dot (m,)
+                let arr_v = mat.g(i, j); // A[i, j]
+                u.s(i, j, arr_v - sum);
+            }
+    
+            // Check
+            let u_ii = u.g(i, i);
+            if u_ii.abs() <= T::epsilon() {
+                return Err(LinalgError::SingularMatrix)?;
+            }
+    
+            // L
+            for j in i+1..m {
+                let sum = l.row(j)?.dot(&u.col(i)?)?;
+                let arr_v = mat.g(j, i);
+                let u_v = u.g(i, i);
+                l.s(j, i, (arr_v - sum) / u_v);
+            }
         }
     }
 
-    Ok((l, u))
+    Ok((l_arr, u_arr))
 }
-
 
 /// Computes the PLU decomposition of a matrix `A`.
 ///
@@ -121,54 +126,59 @@ pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matri
 /// let (p, l, u) = linalg::plu(&a).unwrap();
 /// // Now P * A ≈ L * U
 /// ```
-pub fn plu<T: FloatDType, M: ToMatrixView<T>>(mat: M) 
-    -> Result<(Matrix<T>, Matrix<T>, Matrix<T>)> 
-{
-    let mat = mat.to_matrix_view()?;
+pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, NdArray<T>)> {
+    let mat = arr.matrix_view()?;
     let (m, n) = mat.shape();
 
-    let u = mat.copy();
-    let l = Matrix::<T>::eye(m)?;
-    let p = Matrix::<T>::eye(m)?;
+    let u_arr = mat.copy(); // (m, n)
+    let l_arr = NdArray::<T>::eye(m)?; // (m, m)
+    let p_arr = NdArray::<T>::eye(m)?;
 
-    let k = m.min(n);
+    {
 
-    for i in 0..k {
-        let mut pivot_row = i;
-        let mut max_val = u.g(i, i).abs();
-        for j in (i+1)..m {
-            let val = u.g(j, i).abs();
-            if val > max_val {
-                max_val = val;
-                pivot_row = j;
+        let mut u = u_arr.matrix_view_mut().unwrap();
+        let mut l = l_arr.matrix_view_mut().unwrap();
+        let mut p = p_arr.matrix_view_mut().unwrap();
+    
+        let k = m.min(n);
+    
+        for i in 0..k {
+            let mut pivot_row = i;
+            let mut max_val = u.g(i, i).abs();
+            for j in (i+1)..m {
+                let val = u.g(j, i).abs();
+                if val > max_val {
+                    max_val = val;
+                    pivot_row = j;
+                }
             }
-        }
-
-        if pivot_row != i {
-            u.swap_rows(i, pivot_row)?;
-            p.swap_rows(i, pivot_row)?;
-            if i > 0 {
-                l.swap_rows_partial(i, pivot_row, i)?;
+    
+            if pivot_row != i {
+                u.swap_rows(i, pivot_row)?;
+                p.swap_rows(i, pivot_row)?;
+                if i > 0 {
+                    l.swap_rows_partial(i, pivot_row, i)?;
+                }
             }
-        }
-
-        let pivot = u.g(i, i);
-        if pivot.abs() <= T::epsilon() {
-            continue;
-        }
-
-        for j in (i+1)..m {
-            let factor = u.g(j, i) / pivot;
-            l.s(j, i, factor);
-
-            for kcol in i..n {
-                let new_val = u.g(j, kcol) - factor * u.g(i, kcol);
-                u.s(j, kcol, new_val);
+    
+            let pivot = u.g(i, i);
+            if pivot.abs() <= T::epsilon() {
+                continue;
+            }
+    
+            for j in (i+1)..m {
+                let factor = u.g(j, i) / pivot;
+                l.s(j, i, factor);
+    
+                for kcol in i..n {
+                    let new_val = u.g(j, kcol) - factor * u.g(i, kcol);
+                    u.s(j, kcol, new_val);
+                }
             }
         }
     }
 
-    Ok((p, l, u))
+    Ok((p_arr, l_arr, u_arr))
 }
 
 #[cfg(test)]
@@ -183,8 +193,6 @@ mod test {
             [6., 18., 5.],
         ]).unwrap();
         let (l, u) = linalg::lu(&arr).unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
         let arr_rec = l.matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
@@ -197,8 +205,6 @@ mod test {
             [6., 18., 5.],
         ]).unwrap();
         let (l, u) = linalg::lu(&arr).unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
         let arr_rec = l.matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
@@ -207,8 +213,6 @@ mod test {
     fn test_lu_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
         let (l, u) = linalg::lu(&a).unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
         let rec = l.matmul(&u).unwrap();
         assert!(rec.allclose(&a, 1e-6, 1e-6));
     }
@@ -222,9 +226,6 @@ mod test {
         ]).unwrap();
     
         let (p, l, u) = linalg::plu(&arr).unwrap();
-        let p = p.to_ndarray();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
@@ -238,8 +239,6 @@ mod test {
         ]).unwrap(); // 2x3
     
         let (l, u) = linalg::lu(&arr).unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
     
         let arr_rec = l.matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
@@ -266,9 +265,6 @@ mod test {
         let result = linalg::plu(&a);
         assert!(result.is_ok());
         let (p, l, u) = result.unwrap();
-        let p = p.to_ndarray();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
         assert!(arr_rec.allclose(&a, 1e-4, 1e-4));
@@ -285,9 +281,6 @@ mod test {
         let result = linalg::plu(&arr);
         assert!(result.is_ok());
         let (p, l, u) = result.unwrap();
-        let p = p.to_ndarray();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
@@ -299,8 +292,6 @@ mod test {
         let result = linalg::lu(&arr);
         assert!(result.is_ok());
         let (l, u) = result.unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = l.matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
@@ -309,8 +300,6 @@ mod test {
         let result = linalg::lu(&arr);
         assert!(result.is_ok());
         let (l, u) = result.unwrap();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = l.matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
@@ -322,9 +311,6 @@ mod test {
         let result = linalg::plu(&arr);
         assert!(result.is_ok());
         let (p, l, u) = result.unwrap();
-        let p = p.to_ndarray();
-        let l = l.to_ndarray();
-        let u = u.to_ndarray();
 
         let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));

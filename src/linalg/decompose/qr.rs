@@ -1,4 +1,4 @@
-use crate::{FloatDType, Matrix, Result, ToMatrixView, Vector};
+use crate::{FloatDType, NdArray, Result};
 
 /// Computes the QR decomposition of a matrix `A` using Householder reflections.
 ///
@@ -40,57 +40,60 @@ use crate::{FloatDType, Matrix, Result, ToMatrixView, Vector};
 /// // Now a ≈ Q * R
 /// // Q is orthogonal, R is upper triangular
 /// ```
-pub fn qr<T, M>(a: M) -> Result<(Matrix<T>, Matrix<T>)> 
-where 
-    T: FloatDType,
-    M: ToMatrixView<T>
-{
-    let a = a.to_matrix_view()?;
+pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
+    let a = arr.matrix_view()?;    
     let (m, n) = a.shape();
-    let r = a.copy(); // (m, n)
-    let q = Matrix::<T>::eye(m)?; // (m, m)
+    let r_arr = a.copy(); // (m, n)
+    let q_arr = NdArray::<T>::eye(m)?; // (m, m)
 
-    for k in 0..n {
-        let x = Vector::<T>::zeros(m - k)?;
-        for i in 0..(m - k) {
-            x.s(i, r.g(k + i, k));
-        }
+    {
+        let mut r = r_arr.matrix_view_mut().unwrap();
+        let mut q = q_arr.matrix_view_mut().unwrap();
 
-        // v
-        let v = x.copy();
-        let sign = if x.g(0) >= T::zero() { T::one() } else { -T::one() };
-        let sum_ = x.iter().map(|v| v.powi(2)).sum::<T>();
-        let norm_x = sum_.sqrt();
-        v.s(0, v.g(0) + sign * norm_x);
-
-        // H = I - 2 vv^T / (v^T v)
-        let beta = (T::one() + T::one()) / crate::linalg::dot(&v, &v)?;
-        for j in k..n {
-            // r[k.., j] -= beta * v * (v^T r[k.., j])
-            let mut proj = T::zero();
-            for i in 0..v.len() {
-                proj += v.g(i) * r.g(k + i, j);
+        for k in 0..n {
+            let x_arr = NdArray::<T>::zeros(m - k)?;
+            let mut x = x_arr.vector_view_mut().unwrap(); 
+            for i in 0..(m - k) {
+                x.s(i, r.g(k + i, k));
             }
-            proj *= beta;
-            for i in 0..v.len() {
-                r.s(k + i, j, r.g(k + i, j) - proj * v.g(i));
-            }
-        }
+    
+            // v
+            let v_arr = x.copy();
+            let mut v = v_arr.vector_view_mut().unwrap(); 
 
-        // q[:, k..] -= q[:, k..] * beta * v * v^T
-        for i in 0..m {
-            let mut proj = T::zero();
-            for j in 0..v.len() {
-                proj += q.g(i, k + j) * v.g(j);
+            let sign = if x.g(0) >= T::zero() { T::one() } else { -T::one() };
+            let norm_x = x.norm();
+            v.s(0, v.g(0) + sign * norm_x);
+    
+            // H = I - 2 vv^T / (v^T v)
+            let beta = (T::one() + T::one()) / v.dot(&v)?;
+            for j in k..n {
+                // r[k.., j] -= beta * v * (v^T r[k.., j])
+                let mut proj = T::zero();
+                for i in 0..v.len() {
+                    proj += v.g(i) * r.g(k + i, j);
+                }
+                proj *= beta;
+                for i in 0..v.len() {
+                    r.s(k + i, j, r.g(k + i, j) - proj * v.g(i));
+                }
             }
-            proj *= beta;
-            for j in 0..v.len() {
-                q.s(i, k + j, q.g(i, k + j) - proj * v.g(j));
+    
+            // q[:, k..] -= q[:, k..] * beta * v * v^T
+            for i in 0..m {
+                let mut proj = T::zero();
+                for j in 0..v.len() {
+                    proj += q.g(i, k + j) * v.g(j);
+                }
+                proj *= beta;
+                for j in 0..v.len() {
+                    q.s(i, k + j, q.g(i, k + j) - proj * v.g(j));
+                }
             }
         }
     }
 
-    Ok((q, r))
+    Ok((q_arr, r_arr))
 }
 
 #[cfg(test)]
@@ -106,8 +109,6 @@ mod test {
         ]).unwrap();
 
         let (q, r) = linalg::qr(&a).unwrap();
-        let q = q.to_ndarray();
-        let r = r.to_ndarray();
 
         // 检查 A ≈ Q * R
         let a_rec = q.matmul(&r).unwrap();
@@ -123,9 +124,7 @@ mod test {
     #[test]
     fn test_qr_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let (q, r) = linalg::qr(&a).unwrap();
-        let _ = q.to_ndarray();
-        let _ = r.to_ndarray();
+        let (_, _) = linalg::qr(&a).unwrap();
     }
 
     #[test]
@@ -139,8 +138,6 @@ mod test {
         ]).unwrap();
 
         let (q, r) = linalg::qr(&a).unwrap();
-        let q = q.to_ndarray();
-        let r = r.to_ndarray();
 
         // A ≈ Q * R
         let a_rec = q.matmul(&r).unwrap();

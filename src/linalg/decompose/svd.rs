@@ -1,5 +1,5 @@
 use rand_distr::{Distribution, StandardNormal};
-use crate::{FloatDType, NdArray, Result};
+use crate::{linalg, FloatDType, NdArray, Result};
 
 pub fn svd_lowrank<T: FloatDType>(a: &NdArray<T>, num_iters: usize) -> Result<(Vec<NdArray<T>>, Vec<T>, Vec<NdArray<T>>)> 
 where 
@@ -21,12 +21,12 @@ where
         
         // power_iteration get eig value and vector
         let (_, eig_v) = power_iteration(&rs, num_iters)?; // (n,)
-        eig_v.div_assign(norm(&eig_v))?;
+        eig_v.div_assign(linalg::norm(&eig_v))?;
         vs.push(eig_v.clone());
 
         // 2. sigma and left vector
-        let av = a.matmul(&eig_v.unsqueeze(1)?)?.squeeze(1)?; // (m, n) @ (n, 1) = (m, 1) => (m,)
-        let sigma = norm(&av);
+        let av = linalg::mat_mul_vec(a, &eig_v)?;
+        let sigma = linalg::norm(&av);
         let eig_u = av.div(sigma)?; // (m,)
 
         us.push(eig_u.clone());  
@@ -34,7 +34,7 @@ where
 
         // 3. update a copy
         // (m, 1) @ (1, n) => (m, n)
-        let uv = eig_u.squeeze(1)?.matmul(&eig_v.squeeze(0)?)?;
+        let uv = linalg::outer(&eig_u, &eig_v)?;
         uv.mul_assign(sigma)?;
         a_copy.sub_assign(&uv)?;
     }
@@ -54,7 +54,7 @@ where
     for _ in 0..num_iters {
         // (n, n) @ (n, 1) = (n, 1)
         b = mat.matmul(&b)?;
-        let norm_b = norm(&b);
+        let norm_b = linalg::norm(&b);
         b.div_assign(norm_b)?;
     }
 
@@ -66,11 +66,4 @@ where
     let eig_vector = b;
 
     Ok((eig_value, eig_vector.squeeze(1)?))
-}
-
-fn norm<T: FloatDType>(m: &NdArray<T>) -> T {
-    let sum = m.iter()
-        .map(|v| v.powi(2))
-        .sum::<T>();
-    sum.sqrt()
 }

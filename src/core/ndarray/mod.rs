@@ -13,7 +13,7 @@ mod condition;
 use std::sync::Arc;
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{DType, Dim, DimCoordinates, DimNCoordinates, Layout, Matrix, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, Vector, WithDType};
+use super::{view::{MatrixView, MatrixViewMut, VectorView, VectorViewMut}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, WithDType};
 pub use iter::*;
 
 #[derive(Clone)]
@@ -161,19 +161,30 @@ impl<T: WithDType> NdArray<T> {
     pub fn dim5_coordinates(&self) -> Result<DimNCoordinates<5>> {
         self.shape().dim5_coordinates()
     }
-
-    pub(crate) fn storage_clone(&self) -> StorageArc<T> {
-        self.0.storage.clone()
-    }
 }
 
 impl<T: WithDType> NdArray<T> {
-    pub fn to_matrix(&self) -> Result<Matrix<T>> {
-        Matrix::<T>::from_ndarray(self)
+    // pub fn to_matrix(&self) -> Result<Matrix<T>> {
+    //     Matrix::<T>::from_ndarray(self)
+    // }
+
+    // pub fn to_vector(&self) -> Result<Vector<T>> {
+    //     Vector::<T>::from_ndarray(self)
+    // }
+    pub fn matrix_view<'a>(&'a self) -> Result<MatrixView<'a, T>> {
+        MatrixView::from_ndarray(self)
     }
 
-    pub fn to_vector(&self) -> Result<Vector<T>> {
-        Vector::<T>::from_ndarray(self)
+    pub fn matrix_view_mut<'a>(&'a self) -> Result<MatrixViewMut<'a, T>> {
+        MatrixViewMut::from_ndarray(self)
+    }
+
+    pub fn vector_view<'a>(&'a self) -> Result<VectorView<'a, T>> {
+        VectorView::from_ndarray(self)
+    }
+
+    pub fn vector_view_mut<'a>(&'a self) -> Result<VectorViewMut<'a, T>> {
+        VectorViewMut::from_ndarray(self)
     }
 }
 

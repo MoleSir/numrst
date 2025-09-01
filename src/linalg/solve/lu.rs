@@ -1,25 +1,21 @@
-use crate::{linalg::{self, LinalgError}, FloatDType, Result, ToMatrixView, ToVectorView, Vector};
+use crate::{linalg::{self, LinalgError}, FloatDType, NdArray, Result};
 use super::utils;
 
-/// Solve linear equaltion $A x = Y$
-pub fn lu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
-where 
-    T: FloatDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let (a, y) = utils::check_solve_arg(&a, &y)?;
+pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
+    utils::check_solve_arg(&a, &y)?;
     let (l, u) = linalg::lu(a)?;
+    let y = y.vector_view()?;
 
-    let l = l.to_matrix_view()?;
-    let u = u.to_matrix_view()?;
+    let l = l.matrix_view()?;
+    let u = u.matrix_view()?;
 
     // Ax = y --> LUx = y --> Lz = y & Ux = z
     let n = y.len();
 
     // Forward substitution: L z = y
     // L's diag are all T::one()
-    let z = Vector::<T>::zeros(n)?;
+    let z_arr = NdArray::<T>::zeros(n)?;
+    let mut z = z_arr.vector_view_mut()?;
     for i in 0..n {
         let mut sum = T::zero();
         for j in 0..i {
@@ -29,37 +25,35 @@ where
     }
 
     // Backward substitution: U x = z
-    let x = Vector::<T>::zeros(n)?;
-    for i in (0..n).rev() {
-        let mut sum = T::zero();
-        for j in i+1..n {
-            sum = sum + u.g(i, j) * x.g(j);
+    let x_arr = NdArray::<T>::zeros(n)?;
+    {
+        let mut x = x_arr.vector_view_mut().unwrap();
+        for i in (0..n).rev() {
+            let mut sum = T::zero();
+            for j in i+1..n {
+                sum = sum + u.g(i, j) * x.g(j);
+            }
+            x.s(i, (z.g(i) - sum) / u.g(i, i));
         }
-        x.s(i, (z.g(i) - sum) / u.g(i, i));
     }
 
-    Ok(x)
+    Ok(x_arr)
 }
 
-/// Solve linear equation A x = y using PLU decomposition
-pub fn plu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
-where
-    T: FloatDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
-{
-    let (a, y) = utils::check_solve_arg(&a, &y)?;
-
-    // PLU
+pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
+    utils::check_solve_arg(&a, &y)?;    
     let (p, l, u) = linalg::plu(a)?;
+    let l = l.matrix_view()?;
+    let u = u.matrix_view()?;
 
-    // P：P·A x = L·U x => L·U x = P·y
-    let py = linalg::mat_mul_vec(p, y)?;
-
+    let py: NdArray<T> = linalg::mat_mul_vec(&p, y)?;
+    let py = py.vector_view().unwrap();
+    
     let n = py.len();
 
     // L·z = P·y
-    let z = Vector::<T>::zeros(n)?;
+    let z_arr = NdArray::<T>::zeros(n)?;
+    let mut z = z_arr.vector_view_mut().unwrap();
     for i in 0..n {
         let mut sum = T::zero();
         for j in 0..i {
@@ -69,20 +63,23 @@ where
     }
 
     // U·x = z
-    let x = Vector::<T>::zeros(n)?;
-    for i in (0..n).rev() {
-        let mut sum = T::zero();
-        for j in i+1..n {
-            sum = sum + u.g(i, j) * x.g(j);
+    let x_arr = NdArray::<T>::zeros(n)?;
+    {
+        let mut x = x_arr.vector_view_mut().unwrap();
+        for i in (0..n).rev() {
+            let mut sum = T::zero();
+            for j in i+1..n {
+                sum = sum + u.g(i, j) * x.g(j);
+            }
+            let u_ii = u.g(i, i);
+            if u_ii.abs() <= T::epsilon() {
+                return Err(LinalgError::SingularMatrix)?;
+            }
+            x.s(i, (z.g(i) - sum) / u_ii);
         }
-        let u_ii = u.g(i, i);
-        if u_ii.abs() <= T::epsilon() {
-            return Err(LinalgError::SingularMatrix)?;
-        }
-        x.s(i, (z.g(i) - sum) / u_ii);
     }
 
-    Ok(x)
+    Ok(x_arr)
 }
 
 #[cfg(test)]
@@ -99,9 +96,9 @@ mod tests {
 
         let x = linalg::lu_solve(&a, &y).unwrap();
         let expected = NdArray::from_vec([2., 3.].to_vec(), 2).unwrap();
-        assert!(x.to_ndarray().allclose(&expected, 1e-6, 1e-6));
+        assert!(x.allclose(&expected, 1e-6, 1e-6));
 
-        let y_rec = a.matmul(&x.to_ndarray().unsqueeze(1).unwrap()).unwrap()
+        let y_rec = a.matmul(&x.unsqueeze(1).unwrap()).unwrap()
                      .squeeze(1).unwrap();
         assert!(y.allclose(&y_rec, 1e-6, 1e-6));
     }
@@ -143,12 +140,12 @@ mod tests {
         let y = NdArray::<f64>::randn(0.0, 1.0, (4,)).unwrap();
 
         let x = linalg::lu_solve(&a, &y).unwrap();
-        let y_rec = a.matmul(&x.to_ndarray().unsqueeze(1).unwrap()).unwrap()
+        let y_rec = a.matmul(&x.unsqueeze(1).unwrap()).unwrap()
                      .squeeze(1).unwrap();
         assert!(y.allclose(&y_rec, 1e-6, 1e-6));
 
         let x2 = linalg::plu_solve(&a, &y).unwrap();
-        let y_rec2 = a.matmul(&x2.to_ndarray().unsqueeze(1).unwrap()).unwrap()
+        let y_rec2 = a.matmul(&x2.unsqueeze(1).unwrap()).unwrap()
                       .squeeze(1).unwrap();
         assert!(y.allclose(&y_rec2, 1e-6, 1e-6));
     }
