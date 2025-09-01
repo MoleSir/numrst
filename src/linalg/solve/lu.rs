@@ -54,11 +54,9 @@ where
     let (p, l, u) = linalg::plu(a)?;
 
     // P：P·A x = L·U x => L·U x = P·y
-    // TODO impl a matmul_vec
-    let py = p.to_ndarray().matmul(&y.copy().to_ndarray().unsqueeze(1)?)?.squeeze(1)?;
-    let py = py.to_vector()?;
+    let py = linalg::mat_mul_vec(p, y)?;
 
-    let n = y.len();
+    let n = py.len();
 
     // L·z = P·y
     let z = Vector::<T>::zeros(n)?;
@@ -93,7 +91,6 @@ mod tests {
 
     #[test]
     fn test_lu_solve_simple() {
-        // 可逆方阵 2x2
         let a = NdArray::new(&[
             [3., 1.],
             [1., 2.],

@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::{Error, NdArray, NumDType, Result, Storage, WithDType};
+use crate::{linalg::LinalgError, Error, NdArray, NumDType, Result, Storage, WithDType};
 use super::{Layout, NdArrayId, NdArrayImpl, Shape, StorageArc, StorageRef};
 
 pub struct VectorLayout {
@@ -133,7 +133,11 @@ impl<T: WithDType> Vector<T> {
 
     pub fn swap(&self, other: &Self) -> Result<()> {
         if self.len() != other.len() {
-            return Err(Error::Msg("swap vector with differnet len".into()));
+            return Err(LinalgError::VectorLenMismatch {
+                len1: self.len(),
+                len2: other.len(),
+                op: "swap",
+            })?;
         }
 
         if StorageArc::ptr_eq(&self.storage, &other.storage) {
@@ -193,6 +197,14 @@ impl<'a, T: WithDType> VectorView<'a, T> {
         let start_offset = array.layout().start_offset();
         let storage = array.storage_ref(start_offset);
         Ok(Self { len, stride, storage })
+    }
+
+    pub fn clone(&'a self) -> Self {
+        Self {
+            len: self.len,
+            storage: self.storage.clone(),
+            stride: self.stride
+        }
     }
 
     pub fn get(&self, index: usize) -> Option<T> {
@@ -273,7 +285,7 @@ impl VectorLayout {
 
     pub fn take(&self, len: usize) -> Result<Self> {
         if len > self.len {
-            return Err(Error::Msg("len out of range".into()));
+            return Err(LinalgError::VectorIndexOutOfRange { index: len, len: self.len, op: "take" })?;
         }
 
         Ok(Self {
@@ -285,7 +297,7 @@ impl VectorLayout {
 
     pub fn drop(&self, len: usize) -> Result<Self> {
         if len > self.len {
-            return Err(Error::Msg("len out of range".into()));
+            return Err(LinalgError::VectorIndexOutOfRange { index: len, len: self.len, op: "drop" })?;
         }
 
         let new_len = self.len - len;
@@ -307,7 +319,7 @@ impl VectorLayout {
 }
 
 pub trait ToVectorView<T: WithDType> {
-    fn to_vector_view(&self) -> Result<VectorView<'_, T>>;
+    fn to_vector_view<'a>(&'a self) -> Result<VectorView<'a, T>>;
 }
 
 impl<T: WithDType> ToVectorView<T> for NdArray<T> {
@@ -331,5 +343,11 @@ impl<T: WithDType> ToVectorView<T> for Vector<T> {
 impl<T: WithDType> ToVectorView<T> for &Vector<T> {
     fn to_vector_view(&self) -> Result<VectorView<'_, T>> {
         Ok(self.to_view())
+    }
+}
+
+impl<T: WithDType> ToVectorView<T> for VectorView<'_, T> {
+    fn to_vector_view<'a>(&'a self) -> Result<VectorView<'a, T>> {
+        Ok(self.clone())
     }
 }

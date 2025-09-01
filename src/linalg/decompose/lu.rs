@@ -1,5 +1,43 @@
 use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 
+/// Computes the LU decomposition of a matrix `A`.
+///
+/// # Description
+/// LU decomposition factorizes a square matrix `A` into a lower triangular matrix `L`
+/// and an upper triangular matrix `U` such that `A = L * U`.
+/// 
+/// This implementation does **not** perform row pivoting. As a result, it can fail
+/// with `LinalgError::SingularMatrix` if the matrix is singular or nearly singular,
+/// i.e., when a pivot element is too close to zero.
+///
+/// # Type Parameters
+/// - `T`: The floating-point data type. Must implement `FloatDType`.
+/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
+///
+/// # Parameters
+/// - `mat`: The input matrix `A` to decompose.
+///
+/// # Returns
+/// - `(L, U)` where:
+///   - `L` is a lower triangular matrix with ones on the diagonal.
+///   - `U` is an upper triangular matrix.
+///
+/// # Notes
+/// - For stability on nearly singular or ill-conditioned matrices, consider using
+///   `plu` which includes partial pivoting.
+/// - The input matrix can be rectangular, but the decomposition is only guaranteed
+///   to be valid if it is square and non-singular.
+///
+/// # Example
+/// ```rust
+/// use numrst::{linalg, NdArray};
+/// let a = NdArray::new(&[
+///     [3.0, 1.0],
+///     [1.0, 2.0]
+/// ]).unwrap();
+/// let (l, u) = linalg::lu(&a).unwrap();
+/// // Now a ≈ L * U
+/// ```
 pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matrix<T>)> {
     let mat = mat.to_matrix_view()?;
     let (m, n) = mat.shape();
@@ -33,7 +71,56 @@ pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matri
     Ok((l, u))
 }
 
-/// References: https://github.com/LucasRoig/DecompositionPLU/blob/master/decomposition.py
+
+/// Computes the PLU decomposition of a matrix `A`.
+///
+/// # Description
+/// PLU decomposition factorizes a matrix `A` into a permutation matrix `P`,
+/// a lower triangular matrix `L`, and an upper triangular matrix `U` such that
+/// `P * A = L * U`.
+///
+/// This implementation includes **partial pivoting** for numerical stability.
+/// It selects the largest pivot in each column and swaps rows accordingly.
+/// 
+/// Unlike the plain `lu` function, `plu` can handle matrices that are nearly singular
+/// by reordering rows to avoid zero pivots. However, if an entire column is zero,
+/// the decomposition will still produce zeros in `U` and may not yield a unique solution
+/// when used to solve linear systems.
+///
+/// # Type Parameters
+/// - `T`: The floating-point data type. Must implement `FloatDType`.
+/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
+///
+/// # Parameters
+/// - `mat`: The input matrix `A` to decompose.
+///
+/// # Returns
+/// - `(P, L, U)` where:
+///   - `P` is a permutation matrix representing row swaps.
+///   - `L` is a lower triangular matrix with ones on the diagonal.
+///   - `U` is an upper triangular matrix.
+///
+/// # Notes
+/// - `plu` is generally more robust than `lu` for solving linear systems,
+///   especially when `A` is nearly singular.
+/// - The decomposition can be used to solve `A x = y` by computing:
+///   1. `P * y`
+///   2. Solve `L * z = P * y` (forward substitution)
+///   3. Solve `U * x = z` (backward substitution)
+/// 
+/// # References: 
+/// https://github.com/LucasRoig/DecompositionPLU/blob/master/decomposition.py
+///  
+/// # Example
+/// ```rust
+/// # use numrst::{linalg, NdArray};
+/// let a = NdArray::new(&[
+///     [0.0, 2.0],
+///     [1.0, 2.0]
+/// ]).unwrap();
+/// let (p, l, u) = linalg::plu(&a).unwrap();
+/// // Now P * A ≈ L * U
+/// ```
 pub fn plu<T: FloatDType, M: ToMatrixView<T>>(mat: M) 
     -> Result<(Matrix<T>, Matrix<T>, Matrix<T>)> 
 {

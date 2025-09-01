@@ -9,13 +9,61 @@ pub use qr::*;
 
 use crate::{linalg, FloatDType, Result, ToMatrixView, ToVectorView, Vector};
 
+/// Enumeration of available methods for solving a linear system `A x = y`.
+///
+/// # Variants
+/// - `LU`: Solve using **LU decomposition**. Suitable for general square matrices.
+/// - `Cholesky`: Solve using **Cholesky decomposition**. Requires the matrix to be
+///   symmetric and positive-definite.
+/// - `Qr`: Solve using **QR decomposition**. Can handle rectangular or rank-deficient matrices.
 pub enum SolveMethod {
     LU,
     Cholesky,
     Qr
 }
 
-/// Solve system: `a x = y`
+/// Solves the linear system `A x = y` using the specified decomposition method.
+///
+/// # Description
+/// This function provides a unified interface to solve linear systems using different
+/// decomposition techniques:
+/// 
+/// 1. **LU decomposition** (`SolveMethod::LU`) – suitable for general square matrices.  
+/// 2. **Cholesky decomposition** (`SolveMethod::Cholesky`) – requires `A` to be symmetric
+///    and positive-definite.  
+/// 3. **QR decomposition** (`SolveMethod::Qr`) – can handle rectangular matrices and
+///    least-squares solutions.
+///
+/// # Type Parameters
+/// - `T`: Floating-point numeric type. Must implement `FloatDType`.
+/// - `M`: Type that can be converted to a matrix view (`ToMatrixView<T>`).
+/// - `V`: Type that can be converted to a vector view (`ToVectorView<T>`).
+///
+/// # Parameters
+/// - `a`: The coefficient matrix `A` of the system.
+/// - `y`: The right-hand side vector `y`.
+/// - `method`: The decomposition method to use (`LU`, `Cholesky`, or `Qr`).
+///
+/// # Returns
+/// - `Ok(x)` where `x` is the solution vector such that `A * x ≈ y`.
+/// - Returns an error if:
+///     - The matrix is singular (for LU or Cholesky).  
+///     - The matrix is not square when required (LU/Cholesky).  
+///     - The matrix is not positive-definite for Cholesky.  
+///     - Other decomposition or numerical errors occur.
+///
+/// # Example
+/// ```rust
+/// # use numrst::{linalg, NdArray};
+/// let a = NdArray::new(&[
+///     [3.0, 1.0],
+///     [1.0, 2.0]
+/// ]).unwrap();
+/// let y = NdArray::from_vec([9.0, 8.0].to_vec(), 2).unwrap();
+///
+/// let x = linalg::solve(&a, &y, linalg::SolveMethod::LU).unwrap();
+/// // x ≈ [2.0, 3.0]
+/// ```
 pub fn solve<T, M, V>(a: M, y: V, method: SolveMethod) -> Result<Vector<T>>
 where
     T: FloatDType,

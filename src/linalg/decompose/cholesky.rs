@@ -1,5 +1,43 @@
-use crate::{Error, FloatDType, Matrix, Result, ToMatrixView};
+use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 
+/// Computes the Cholesky decomposition of a matrix `A`.
+///
+/// # Description
+/// Cholesky decomposition factorizes a symmetric positive-definite matrix `A`
+/// into a lower triangular matrix `L` such that `A = L * L^T`.
+///
+/// This implementation only computes the lower triangular factor `L`.
+/// The upper triangular factor can be obtained as `L^T`.
+///
+/// # Type Parameters
+/// - `T`: The floating-point data type. Must implement `FloatDType`.
+/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
+///
+/// # Parameters
+/// - `mat`: The input matrix `A` to decompose. Must be symmetric and positive-definite.
+///
+/// # Returns
+/// - `L`: where `L` is a lower triangular matrix such that `A = L * L^T`.
+///
+/// # Notes
+/// - Input matrix `A` must be square (`n x n`). Non-square matrices are invalid.
+/// - Symmetry of `A` is assumed; this implementation does not explicitly check symmetry.
+/// - The decomposition fails immediately if a non-positive pivot is encountered.
+/// - This function is useful for solving linear systems `A x = y` when `A` is symmetric
+///   and positive-definite, and for generating random samples with a multivariate
+///   normal distribution.
+///
+/// # Example
+/// ```rust
+/// # use numrst::{linalg, NdArray};
+/// let a = NdArray::new(&[
+///     [4.0, 12.0, -16.0],
+///     [12.0, 37.0, -43.0],
+///     [-16.0, -43.0, 98.0],
+/// ]).unwrap();
+/// let l = linalg::cholesky(&a).unwrap();
+/// // Now a ≈ L * L^T
+/// ```
 pub fn cholesky<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<Matrix<T>> {
     let mat = mat.to_matrix_view()?;
     let (n, _) = mat.shape();
@@ -13,7 +51,7 @@ pub fn cholesky<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<Matrix<T>> 
         }
         let diag = mat.g(i, i) - sum;
         if diag <= T::zero() {
-            return Err(Error::Msg("Matrix is not positive definite".into()));
+            return Err(LinalgError::ExpectPositiveDefiniteMatrix { op: "cholesky" })?;
         }
         l.s(i, i, diag.sqrt());
 

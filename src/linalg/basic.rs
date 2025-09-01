@@ -1,4 +1,6 @@
-use crate::{Error, Matrix, NumDType, Result, ToMatrixView, ToVectorView};
+use crate::{Matrix, NumDType, Result, ToMatrixView, ToVectorView, Vector};
+
+use super::LinalgError;
 
 pub fn dot<T, V1, V2>(a: V1, b: V2) -> Result<T> 
 where 
@@ -10,7 +12,7 @@ where
     let b = b.to_vector_view()?;
 
     if a.len() != b.len() {
-        Err(Error::Msg("len mismatch in dot".into()))?;
+        Err(LinalgError::VectorLenMismatch { len1: a.len(), len2: b.len(), op: "dot" })?;
     }
 
     let result = a.into_iter().zip(b.into_iter()).map(|(a, b)| a * b).sum::<T>();
@@ -30,12 +32,11 @@ where
     let (k2, n) = b.shape();
 
     if k1 != k2 {
-        Err(Error::Msg(format!("invalid shape in matmul in {:?} and {:?}", a.shape(), b.shape())))?;
+        Err(LinalgError::MatmulShapeMismatch { lhs: a.shape(), rhs: b.shape() })?;
     }
     let z = k1;
 
     let res = Matrix::<T>::zeros(m, n)?;
-    
     for i in 0..m {
         for j in 0..n {
             let mut sum = T::zero();
@@ -49,11 +50,69 @@ where
     Ok(res)
 }
 
+pub fn mat_mul_vec<T, M, V>(mat: M, vec: V) -> Result<Vector<T>> 
+where 
+    T: NumDType,
+    M: ToMatrixView<T>,
+    V: ToVectorView<T>,
+{
+    let mat = mat.to_matrix_view()?;
+    let vec = vec.to_vector_view()?;
+
+    let (m, k1) = mat.shape();
+    let k2 = vec.len();
+
+    if k1 != k2 {
+        Err(LinalgError::MatMulVecShapeMismatch { shape: mat.shape(), len: vec.len() })?;
+    }
+    let k = k1; // (m, k) @ (k) = (m)
+
+    let res = Vector::<T>::zeros(m)?;
+    for i in 0..m {
+        let mut sum = T::zero();
+        for j in 0..k {
+            sum += mat.g(i, j) * vec.g(j);
+        }
+        res.s(i, sum);
+    }
+
+    Ok(res)
+}
+
+pub fn vec_mul_mat<T, M, V>(vec: V, mat: M) -> Result<Vector<T>> 
+where 
+    T: NumDType,
+    M: ToMatrixView<T>,
+    V: ToVectorView<T>,
+{
+    let vec = vec.to_vector_view()?;
+    let mat = mat.to_matrix_view()?;
+
+    let k1 = vec.len();
+    let (k2, n) = mat.shape();
+
+    if k1 != k2 {
+        Err(LinalgError::VecMulMatShapeMismatch { len: vec.len(), shape: mat.shape() })?;
+    }
+    let k = k1; // (1, k) @ (k, n) = (1, n)
+
+    let res = Vector::<T>::zeros(n)?;
+    for i in 0..n {
+        let mut sum = T::zero();
+        for j in 0..k {
+            sum += vec.g(j) * mat.g(j, i);
+        }
+        res.s(i, sum);
+    }
+
+    Ok(res)
+}
+
 pub fn trace<T: NumDType, M: ToMatrixView<T>>(mat: M) -> Result<T> {
     let mat = mat.to_matrix_view()?;
     let (m, n) = mat.shape();
     if m != n {
-        Err(Error::Msg(format!("trace should square")))?;
+        Err(LinalgError::ExpectMatrixSquare { shape: mat.shape(), op: "trace" })?;
     }
     
     let t = (0..m).into_iter()

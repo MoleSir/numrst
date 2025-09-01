@@ -1,5 +1,45 @@
 use crate::{FloatDType, Matrix, Result, ToMatrixView, Vector};
 
+/// Computes the QR decomposition of a matrix `A` using Householder reflections.
+///
+/// # Description
+/// QR decomposition factorizes a matrix `A` into an orthogonal matrix `Q`
+/// and an upper triangular matrix `R` such that `A = Q * R`.
+///
+/// This implementation uses **Householder reflections**, which are numerically
+/// stable and suitable for both square and rectangular matrices.
+///
+/// # Type Parameters
+/// - `T`: The floating-point data type. Must implement `FloatDType`.
+/// - `M`: A type that can be converted to a matrix view (`ToMatrixView<T>`).
+///
+/// # Parameters
+/// - `a`: The input matrix `A` to decompose. Can be rectangular (`m x n`).
+///
+/// # Returns
+/// `(Q, R)` where:
+///   - `Q` is an orthogonal matrix of size `m x m` (`Q^T * Q = I`).
+///   - `R` is an upper triangular matrix of size `m x n`.
+///
+/// # Notes
+/// - This implementation produces a full `Q` of size `m x m`. The upper-left
+///   `m x n` block can be used for a reduced QR decomposition if desired.
+/// - The algorithm iteratively constructs Householder vectors to zero out
+///   sub-diagonal elements column by column.
+/// - `Q` is built as the product of Householder transformations applied to the identity matrix.
+///
+/// # Example
+/// ```rust
+/// # use numrst::{linalg, NdArray};
+/// let a = NdArray::new(&[
+///     [12.0, -51.0, 4.0],
+///     [6.0, 167.0, -68.0],
+///     [-4.0, 24.0, -41.0],
+/// ]).unwrap();
+/// let (q, r) = linalg::qr(&a).unwrap();
+/// // Now a ≈ Q * R
+/// // Q is orthogonal, R is upper triangular
+/// ```
 pub fn qr<T, M>(a: M) -> Result<(Matrix<T>, Matrix<T>)> 
 where 
     T: FloatDType,
@@ -16,7 +56,7 @@ where
             x.s(i, r.g(k + i, k));
         }
 
-        // 构造 v
+        // v
         let v = x.copy();
         let sign = if x.g(0) >= T::zero() { T::one() } else { -T::one() };
         let sum_ = x.iter().map(|v| v.powi(2)).sum::<T>();
