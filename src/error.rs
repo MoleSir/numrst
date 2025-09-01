@@ -1,7 +1,7 @@
 use std::str::Utf8Error;
 use zip::result::ZipError;
 
-use crate::{io::{NpyError, NrstError}, DType, Range, Shape};
+use crate::{io::{NpyError, NrstError}, linalg::LinalgError, DType, Range, Shape};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -162,6 +162,9 @@ pub enum Error {
     },
 
     // === Transparent Errors ===
+    #[error(transparent)]
+    Linalg(#[from] LinalgError),
+
     #[error(transparent)]
     Npy(#[from] NpyError),
 

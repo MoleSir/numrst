@@ -73,6 +73,22 @@ impl<T: WithDType> Vector<T> {
         })
     }
 
+    pub fn take(&self, len: usize) -> Result<Self> {
+        let layout = self.layout.take(len)?;
+        Ok(Self {
+            storage: self.storage.clone(),
+            layout
+        })
+    }
+
+    pub fn drop(&self, len: usize) -> Result<Self> {
+        let layout = self.layout.drop(len)?;
+        Ok(Self {
+            storage: self.storage.clone(),
+            layout
+        })
+    }
+
     pub fn to_view<'a>(&'a self) -> VectorView<'a, T> {
         VectorView {
             storage: self.storage.get_ref(self.layout.start_offset),
@@ -113,6 +129,41 @@ impl<T: WithDType> Vector<T> {
             storage,
             layout: VectorLayout::contiguous(self.len())
         }
+    }
+
+    pub fn swap(&self, other: &Self) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(Error::Msg("swap vector with differnet len".into()));
+        }
+
+        if StorageArc::ptr_eq(&self.storage, &other.storage) {
+            let mut storage = self.storage.write();
+            let len = self.len();
+            (0..len).into_iter()
+                .map(|index| (self.layout.get_storage_index_uncheck(index), other.layout.get_storage_index_uncheck(index)))
+                .for_each(|(self_index, other_index)| {
+                    let self_value = storage.get_unchecked(self_index);
+                    let other_value = storage.get_unchecked(other_index);
+                    storage.set_unchecked(self_index, other_value);
+                    storage.set_unchecked(other_index, self_value);
+                });
+
+        } else {
+            let mut self_storage = self.storage.write();
+            let mut other_storage = other.storage.write();
+    
+            let len = self.len();
+            (0..len).into_iter()
+                .map(|index| (self.layout.get_storage_index_uncheck(index), other.layout.get_storage_index_uncheck(index)))
+                .for_each(|(self_index, other_index)| {
+                    let self_value = self_storage.get_unchecked(self_index);
+                    let other_value = other_storage.get_unchecked(other_index);
+                    self_storage.set_unchecked(self_index, other_value);
+                    other_storage.set_unchecked(other_index, self_value);
+                });
+        }
+
+        Ok(())
     }
 
     pub fn len(&self) -> usize {
@@ -218,6 +269,28 @@ impl<'a, T: WithDType> Iterator for VectorIter<'a, T> {
 impl VectorLayout {
     pub fn contiguous(len: usize) -> Self {
         Self { len, stride: 1, start_offset: 0 }
+    }
+
+    pub fn take(&self, len: usize) -> Result<Self> {
+        if len > self.len {
+            return Err(Error::Msg("len out of range".into()));
+        }
+
+        Ok(Self {
+            len,
+            stride: self.stride,
+            start_offset: self.start_offset,
+        })
+    }
+
+    pub fn drop(&self, len: usize) -> Result<Self> {
+        if len > self.len {
+            return Err(Error::Msg("len out of range".into()));
+        }
+
+        let new_len = self.len - len;
+        let start_offset = self.start_offset + self.stride * len;
+        Ok(Self { len: new_len, stride: self.stride, start_offset })
     }
 
     #[inline]

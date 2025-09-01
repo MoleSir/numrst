@@ -1,11 +1,13 @@
 import numpy as np
-from scipy.linalg import lu
+import scipy
 
-A = np.array([[0, 1],
-              [1, 0]], dtype=float)
+A = np.array([
+    [2., 4., 1.],
+    [4., 8., 2.],
+    [1., 2., 0.5]
+])
 
-P, L, U = lu(A)
-
-print("P =\n", P)
-print("L =\n", L)
-print("U =\n", U)
+P, L, U = scipy.linalg.lu(A)   # 注意 NumPy 里通常用 scipy.linalg.lu
+print(P)
+print(L)
+print(U)

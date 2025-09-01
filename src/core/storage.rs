@@ -160,6 +160,11 @@ impl<T: WithDType> StorageArc<T> {
     }
 
     #[inline]
+    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
+        Arc::ptr_eq(&this.0, &other.0)
+    }
+
+    #[inline]
     pub fn get_ref(&self, start_offset: usize) -> StorageRef<'_, T> {
         StorageRef::Guard(std::sync::RwLockReadGuard::map(self.0.read().unwrap(), |s| &s.data()[start_offset..]))
     }
@@ -178,7 +183,14 @@ pub enum  StorageRef<'a, T> {
 pub struct StorageMut<'a, T>(std::sync::MappedRwLockWriteGuard<'a, [T]>);
 
 impl<'a, T: WithDType> StorageRef<'a, T> {
-    pub fn slice(&'a self, index: usize) -> StorageRef<'a, T> {
+    pub fn clone(&'a self) -> Self {
+        match self {
+            Self::Guard(gurad) => Self::Slice(gurad),
+            Self::Slice(s) => Self::Slice(s),
+        }
+    }
+
+    pub fn slice(&'a self, index: usize) -> Self {
         match self {
             Self::Guard(gurad) => Self::Slice(&gurad[index..]),
             Self::Slice(s) => Self::Slice(&s[index..]),

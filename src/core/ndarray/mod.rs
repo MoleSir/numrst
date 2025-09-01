@@ -168,11 +168,11 @@ impl<T: WithDType> NdArray<T> {
 }
 
 impl<T: WithDType> NdArray<T> {
-    pub fn matrix_view(&self) -> Result<Matrix<T>> {
+    pub fn to_matrix(&self) -> Result<Matrix<T>> {
         Matrix::<T>::from_ndarray(self)
     }
 
-    pub fn vector_view(&self) -> Result<Vector<T>> {
+    pub fn to_vector(&self) -> Result<Vector<T>> {
         Vector::<T>::from_ndarray(self)
     }
 }

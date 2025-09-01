@@ -1,3 +1,12 @@
+mod lu;
+mod cholesky;
+mod qr;
+mod utils;
+
+pub use lu::*;
+pub use cholesky::*;
+pub use qr::*;
+
 use crate::{linalg, FloatDType, Result, ToMatrixView, ToVectorView, Vector};
 
 pub enum SolveMethod {

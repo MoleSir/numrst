@@ -1,21 +1,28 @@
-use crate::{FloatDType, Matrix, Result, ToMatrixView, ToVectorView, Vector};
+use crate::{linalg::LinalgError, FloatDType, Matrix, Result, ToMatrixView};
 
 pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matrix<T>)> {
     let mat = mat.to_matrix_view()?;
     let (m, n) = mat.shape();
-    let l = Matrix::<T>::eye(n)?;
+    let l = Matrix::<T>::eye(m)?;
     let u = Matrix::<T>::zeros(m, n)?;
+    let k = m.min(n); 
 
-    for i in 0..n {
+    for i in 0..k {
         // U
         for j in i..n {
-            let sum = l.row(i)?.dot(&u.col(j)?)?;
-            let arr_v = mat.g(i, j); 
+            let sum = l.row(i)?.dot(&u.col(j)?)?; // (m,) dot (m,)
+            let arr_v = mat.g(i, j); // A[i, j]
             u.s(i, j, arr_v - sum);
         }
 
+        // Check
+        let u_ii = u.g(i, i);
+        if u_ii.abs() <= T::epsilon() {
+            return Err(LinalgError::SingularMatrix)?;
+        }
+
         // L
-        for j in i+1..n {
+        for j in i+1..m {
             let sum = l.row(j)?.dot(&u.col(i)?)?;
             let arr_v = mat.g(j, i);
             let u_v = u.g(i, i);
@@ -26,49 +33,60 @@ pub fn lu<T: FloatDType, M: ToMatrixView<T>>(mat: M) -> Result<(Matrix<T>, Matri
     Ok((l, u))
 }
 
-/// Solve linear equaltion $A x = Y$
-pub fn lu_solve<T, M, V>(a: M, y: V) -> Result<Vector<T>> 
-where 
-    T: FloatDType,
-    M: ToMatrixView<T>,
-    V: ToVectorView<T>,
+/// References: https://github.com/LucasRoig/DecompositionPLU/blob/master/decomposition.py
+pub fn plu<T: FloatDType, M: ToMatrixView<T>>(mat: M) 
+    -> Result<(Matrix<T>, Matrix<T>, Matrix<T>)> 
 {
-    let (l, u) = lu(a)?;
+    let mat = mat.to_matrix_view()?;
+    let (m, n) = mat.shape();
 
-    let l = l.to_matrix_view()?;
-    let u = u.to_matrix_view()?;
-    let y = y.to_vector_view()?;
+    let u = mat.copy();
+    let l = Matrix::<T>::eye(m)?;
+    let p = Matrix::<T>::eye(m)?;
 
-    // Ax = y --> LUx = y --> Lz = y & Ux = z
-    let n = y.len();
+    let k = m.min(n);
 
-    // Forward substitution: L z = y
-    // L's diag are all T::one()
-    let z = Vector::<T>::zeros(n)?;
-    for i in 0..n {
-        let mut sum = T::zero();
-        for j in 0..i {
-            sum = sum + l.g(i, j) * z.g(j);
+    for i in 0..k {
+        let mut pivot_row = i;
+        let mut max_val = u.g(i, i).abs();
+        for j in (i+1)..m {
+            let val = u.g(j, i).abs();
+            if val > max_val {
+                max_val = val;
+                pivot_row = j;
+            }
         }
-        z.s(i, (y.g(i) - sum) / l.g(i, i));
+
+        if pivot_row != i {
+            u.swap_rows(i, pivot_row)?;
+            p.swap_rows(i, pivot_row)?;
+            if i > 0 {
+                l.swap_rows_partial(i, pivot_row, i)?;
+            }
+        }
+
+        let pivot = u.g(i, i);
+        if pivot.abs() <= T::epsilon() {
+            continue;
+        }
+
+        for j in (i+1)..m {
+            let factor = u.g(j, i) / pivot;
+            l.s(j, i, factor);
+
+            for kcol in i..n {
+                let new_val = u.g(j, kcol) - factor * u.g(i, kcol);
+                u.s(j, kcol, new_val);
+            }
+        }
     }
 
-    // Backward substitution: U x = z
-    let x = Vector::<T>::zeros(n)?;
-    for i in (0..n).rev() {
-        let mut sum = T::zero();
-        for j in i+1..n {
-            sum = sum + u.g(i, j) * x.g(j);
-        }
-        x.s(i, (z.g(i) - sum) / u.g(i, i));
-    }
-
-    Ok(x)
+    Ok((p, l, u))
 }
 
 #[cfg(test)]
 mod test {
-    use crate::{NdArray, linalg};
+    use crate::{linalg::{self, LinalgError}, Error, NdArray};
 
     #[test]
     fn test_lu() {
@@ -109,31 +127,119 @@ mod test {
     }
 
     #[test]
-    fn test_lu_random_matrix() {
-        let a = NdArray::new(&[
-            [1., 2., 3.],
-            [4., 5., 6.],
-            [7., 8., 10.],
+    fn test_plu_decomp_reconstruct() {
+        let arr = NdArray::new(&[
+            [0., 2., 3.],
+            [4., 7., 3.],
+            [6., 18., 5.],
         ]).unwrap();
-        let (l, u) = linalg::lu(&a).unwrap();
-        let rec = l.to_ndarray().matmul(&u.to_ndarray()).unwrap();
-        assert!(rec.allclose(&a, 1e-6, 1e-6));
+    
+        let (p, l, u) = linalg::plu(&arr).unwrap();
+        let p = p.to_ndarray();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
 
     #[test]
-    fn test_lu_solve_simple() {
-        let a = NdArray::new(&[
-            [3., 1.],
-            [1., 2.],
-        ]).unwrap();
-        let y = NdArray::from_vec([9., 8.].to_vec(), 2).unwrap();
-
-        let x = linalg::lu_solve(&a, &y).unwrap();
-        let expected = NdArray::from_vec([2., 3.].to_vec(), 2).unwrap();
-        assert!(x.to_ndarray().allclose(&expected, 1e-6, 1e-6));
-
-        let expected = a.matmul(&x.to_ndarray().unsqueeze(1).unwrap()).unwrap().squeeze(1).unwrap();
-        assert!(y.allclose(&expected, 1e-6, 1e-6));
-
+    fn test_lu_rectangular() {
+        let arr = NdArray::new(&[
+            [2., 3., 1.],
+            [4., 7., 3.],
+        ]).unwrap(); // 2x3
+    
+        let (l, u) = linalg::lu(&arr).unwrap();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+    
+        let arr_rec = l.matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
+
+    #[test]
+    fn test_lu_singular() {
+        let a = NdArray::new(&[
+            [1., 2., 3.],
+            [1., 2., 3.],
+            [4., 5., 6.],
+        ]).unwrap();
+        let res = linalg::lu(&a);
+        matches!(res, Err(Error::Linalg(LinalgError::SingularMatrix)));
+    }
+
+    #[test]
+    fn test_plu_singular1() {
+        let a = NdArray::new(&[
+            [1., 2., 3.],
+            [1., 2., 3.],
+            [4., 5., 6.],
+        ]).unwrap();
+        let result = linalg::plu(&a);
+        assert!(result.is_ok());
+        let (p, l, u) = result.unwrap();
+        let p = p.to_ndarray();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&a, 1e-4, 1e-4));
+    }
+
+    #[test]
+    fn test_plu_singular() {
+        let arr = NdArray::new(&[
+            [2., 4., 1.],
+            [4., 8., 2.],
+            [1., 2., 0.5],
+        ]).unwrap();
+    
+        let result = linalg::plu(&arr);
+        assert!(result.is_ok());
+        let (p, l, u) = result.unwrap();
+        let p = p.to_ndarray();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
+    }    
+
+    #[test]
+    fn test_lu_rand() {
+        let arr = NdArray::<f64>::randn(0.0, 1.0, (6, 6)).unwrap();
+        let result = linalg::lu(&arr);
+        assert!(result.is_ok());
+        let (l, u) = result.unwrap();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = l.matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
+
+        let arr = NdArray::<f64>::randn(0.0, 1.0, (8, 6)).unwrap();
+        let result = linalg::lu(&arr);
+        assert!(result.is_ok());
+        let (l, u) = result.unwrap();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = l.matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
+    }   
+
+    #[test]
+    fn test_plu_rand() {
+        let arr = NdArray::<f64>::randn(0.0, 1.0, (6, 6)).unwrap();
+        let result = linalg::plu(&arr);
+        assert!(result.is_ok());
+        let (p, l, u) = result.unwrap();
+        let p = p.to_ndarray();
+        let l = l.to_ndarray();
+        let u = u.to_ndarray();
+
+        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
+    }   
 }

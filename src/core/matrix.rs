@@ -124,6 +124,31 @@ impl<T: WithDType> Matrix<T> {
         Ok(Vector { storage, layout })
     }
 
+    pub fn swap_rows(&self, r1: usize, r2: usize) -> Result<()> {
+        if r1 == r2 {
+            return Ok(());
+        }
+
+        let row1 = self.row(r1)?;
+        let row2 = self.row(r2)?;
+        row1.swap(&row2)?;
+
+        Ok(())        
+
+    }
+
+    pub fn swap_rows_partial(&self, r1: usize, r2: usize, size: usize) -> Result<()> {
+        if r1 == r2 {
+            return Ok(());
+        }
+
+        let row1 = self.row(r1)?.take(size)?;
+        let row2 = self.row(r2)?.take(size)?;
+        row1.swap(&row2)?;
+
+        Ok(())        
+    }
+
     pub fn row_size(&self) -> usize {
         self.layout.row_size()
     }
@@ -155,6 +180,14 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         })
     }
 
+    pub fn clone(&'a self) -> Self {
+        Self {
+            shape: self.shape,
+            storage: self.storage.clone(),
+            strides: self.strides
+        }
+    }
+
     pub fn row(&'a self, row: usize) -> Result<VectorView<'a, T>> {
         if row > self.row_size() {
             return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
@@ -179,6 +212,11 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
                 stride: self.row_stride(),
             })
         }
+    }
+
+    pub fn is_square(&self) -> bool {
+        let (m, n) = self.shape();
+        m == n 
     }
 
     pub fn get(&self, row: usize, col: usize) -> Option<T> {
@@ -272,7 +310,7 @@ impl MatrixLayout {
     }
 
     fn get_row_vector_layout(&self, row: usize) -> Result<VectorLayout> {
-        if row > self.row_size() {
+        if row >= self.row_size() {
             return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
         } else {
             Ok(VectorLayout {
@@ -284,7 +322,7 @@ impl MatrixLayout {
     }
 
     fn get_col_vector_layout(&self, col: usize) -> Result<VectorLayout> {
-        if col > self.col_size() {
+        if col >= self.col_size() {
             return Err(Error::MatrixIndexOutOfRange { position: "col", len: self.col_size(), index: col });
         } else {
             Ok(VectorLayout {
@@ -297,7 +335,7 @@ impl MatrixLayout {
 }
 
 pub trait ToMatrixView<T: WithDType> {
-    fn to_matrix_view(&self) -> Result<MatrixView<'_, T>>;
+    fn to_matrix_view<'a>(&'a self) -> Result<MatrixView<'a, T>>;
 }
 
 impl<T: WithDType> ToMatrixView<T> for NdArray<T> {
@@ -321,5 +359,11 @@ impl<T: WithDType> ToMatrixView<T> for Matrix<T> {
 impl<T: WithDType> ToMatrixView<T> for &Matrix<T> {
     fn to_matrix_view(&self) -> Result<MatrixView<'_, T>> {
         Ok(self.to_view())
+    }
+}
+
+impl<T: WithDType> ToMatrixView<T> for MatrixView<'_, T> {
+    fn to_matrix_view<'a>(&'a self) -> Result<MatrixView<'a, T>> {
+        Ok(self.clone())
     }
 }

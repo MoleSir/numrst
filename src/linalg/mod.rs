@@ -6,3 +6,4 @@ mod error;
 pub use basic::*;
 pub use solve::*;
 pub use decompose::*;
+pub use error::*;
