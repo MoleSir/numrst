@@ -173,6 +173,13 @@ impl<T: WithDType> StorageArc<T> {
     pub fn get_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
         StorageMut::Guard(std::sync::RwLockWriteGuard::map(self.0.write().unwrap(), |s| &mut s.data_mut()[start_offset..]))
     }
+
+    #[inline]
+    pub fn get_ptr(&self, start_offset: usize) -> *mut T {
+        let mut s = self.0.write().unwrap();
+        let data = &mut s.data_mut()[start_offset..];
+        data.as_mut_ptr()
+    }
 }
 
 pub enum StorageRef<'a, T> {

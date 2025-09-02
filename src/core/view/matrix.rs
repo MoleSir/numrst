@@ -7,6 +7,12 @@ pub struct MatrixView<'a, T: WithDType> {
     pub(crate) strides: (usize, usize),
 }
 
+pub struct MatrixViewMut<'a, T: WithDType> {
+    pub(crate) storage: StorageMut<'a, T>,
+    pub(crate) shape: (usize, usize),
+    pub(crate) strides: (usize, usize),
+}
+
 impl<'a, T: WithDType> MatrixView<'a, T> {
     pub fn from_ndarray(array: &'a NdArray<T>) -> Result<Self> {
         let _ = array.dims2()?;
@@ -134,12 +140,6 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
     pub fn storage_index(&self, row: usize, col: usize) -> usize {
         self.strides.0 * row + self.strides.1 * col
     }
-}
-
-pub struct MatrixViewMut<'a, T: WithDType> {
-    pub(crate) storage: StorageMut<'a, T>,
-    pub(crate) shape: (usize, usize),
-    pub(crate) strides: (usize, usize),
 }
 
 impl<'a, T: WithDType> MatrixViewMut<'a, T> {

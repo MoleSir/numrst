@@ -8,8 +8,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", mat_a.shape());
     println!("{}", mat_a);
 
-    let mat_view = mat_a.matrix_view_mut()?;
-    let _row1_view = mat_view.row(1)?;
 
     Ok(())
 }

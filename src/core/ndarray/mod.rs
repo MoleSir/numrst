@@ -70,6 +70,11 @@ impl<T: WithDType> NdArray<T> {
     pub fn storage_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
         self.0.storage.get_mut(start_offset)
     }
+
+    #[inline]
+    pub fn storage_ptr(&self, start_offset: usize) -> *mut T {
+        self.0.storage.get_ptr(start_offset)
+    }
 }
 
 impl<T: WithDType> NdArray<T> {
