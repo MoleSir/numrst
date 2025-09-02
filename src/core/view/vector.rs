@@ -1,4 +1,5 @@
-use crate::{Error, FloatDType, NdArray, Result, Storage, WithDType};
+use crate::linalg::LinalgError;
+use crate::{Error, FloatDType, NdArray, NumDType, Result, Storage, WithDType};
 use crate::{StorageMut, StorageRef};
 
 pub struct VectorView<'a, T: WithDType> {
@@ -48,6 +49,19 @@ impl<'a, T: WithDType> VectorView<'a, T> {
             index: 0,
         }
     }
+
+    pub fn drop(&'a self, size: usize) -> Result<VectorView<'a, T>> {
+        if size > self.len {
+            Err(LinalgError::VectorIndexOutOfRange { index: size, len: self.len, op: "drop" })?;
+        }
+        let drop_size = self.stride * size;
+        let new_len = self.len - size;
+        Ok(Self {
+            storage: self.storage.slice(drop_size),
+            len: new_len,
+            stride: self.stride
+        })
+    }  
 
     pub fn copy(&self) -> NdArray<T> {
         let data: Vec<_> = (0..self.len)
@@ -161,7 +175,6 @@ impl<'a, T: WithDType> VectorViewMut<'a, T> {
         NdArray::from_storage(storage, (self.len,))
     }
 
-
     pub fn swap(&mut self, other: &mut Self) -> Result<()> {
         if self.len() != other.len() {
             return Err(Error::Msg("len mismatch".into()))?;
@@ -212,6 +225,16 @@ impl<'a, T: FloatDType> VectorViewMut<'a, T> {
         Ok(self.iter().zip(rhs.iter())
             .map(|(a, b)| a * b)
             .sum::<T>())
+    }
+}
+
+impl<'a, T: NumDType> VectorViewMut<'a, T> {
+    pub fn mul_assign(&'a mut self, mul: T) {
+        // TODO: fast
+        for i in 0..self.len {
+            let v = self.g(i);
+            self.s(i, v * mul);
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{Error, NdArray, Result, Storage, StorageMut, WithDType, StorageRef};
+use crate::{Error, NdArray, NumDType, Result, Storage, StorageMut, StorageRef, WithDType};
 use super::{VectorView, VectorViewMut};
 
 pub struct MatrixView<'a, T: WithDType> {
@@ -57,6 +57,14 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
             shape: (self.col_size(), self.row_size()),
             strides: (self.col_stride(), self.row_stride()),
             storage: self.storage.clone()
+        }
+    }
+
+    pub fn into_transpose(self) -> Self {
+        Self {
+            shape: (self.col_size(), self.row_size()),
+            strides: (self.col_stride(), self.row_stride()),
+            storage: self.storage
         }
     }
 
@@ -252,6 +260,33 @@ impl<'a, T: WithDType> MatrixViewMut<'a, T> {
         Ok(())    
     }
 
+    pub fn swap_cols(&mut self, c1: usize, c2: usize) -> Result<()> {
+        if c1 == c2 {
+            return Ok(());
+        }
+        if c1 > self.col_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "swap_cols", len: self.row_size(), index: c1 });
+        } 
+        if c2 > self.col_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "swap_cols", len: self.row_size(), index: c2 });
+        } 
+
+        let stride = self.row_stride();
+        let mut start_index1 = c1;
+        let mut start_index2 = c2;
+
+        for _ in 0..self.row_size() {
+            let value1 = self.storage.get_unchecked(start_index1);
+            let value2 = self.storage.get_unchecked(start_index2);
+            self.storage.set_unchecked(start_index1, value2);
+            self.storage.set_unchecked(start_index2, value1);
+            start_index1 += stride;
+            start_index2 += stride;
+        }
+
+        Ok(())    
+    }
+
     pub fn swap_rows_partial(&mut self, r1: usize, r2: usize, size: usize) -> Result<()> {
         if r1 == r2 {
             return Ok(());
@@ -307,6 +342,13 @@ impl<'a, T: WithDType> MatrixViewMut<'a, T> {
         }
     }
 
+    pub fn diag(&self) -> Vec<T> {
+        let m = self.row_size().min(self.col_size());
+        (0..m)
+            .map(|i| self.g(i, i))
+            .collect()
+    }
+
     /// Uncheck `get`
     #[inline]
     pub fn s(&mut self, row: usize, col: usize, value: T) {
@@ -333,7 +375,33 @@ impl<'a, T: WithDType> MatrixViewMut<'a, T> {
         (self.row_size(), self.col_size())
     }
 
+    pub fn transpose(self) -> Self {
+        Self {
+            shape: (self.col_size(), self.row_size()),
+            strides: (self.col_stride(), self.row_stride()),
+            storage: self.storage
+        }
+    }
+
     pub fn storage_index(&self, row: usize, col: usize) -> usize {
         self.strides.0 * row + self.strides.1 * col
+    }
+}
+
+impl<'a, T: NumDType> MatrixViewMut<'a, T> {
+    pub fn mul_assign_col(&mut self, col: usize, mul: T) -> Result<()> {
+        if col > self.col_size() {
+            return Err(Error::MatrixIndexOutOfRange { position: "mul_assign_col", len: self.col_size(), index: col });
+        } else {
+            let mut start_index = self.col_stride() * col;
+            for _ in 0..self.row_size() {
+                let v = self.storage.get_unchecked(start_index);
+                self.storage.set_unchecked(start_index, v * mul);
+                start_index += self.row_stride();
+                
+            }
+            
+            Ok(())
+        }
     }
 }

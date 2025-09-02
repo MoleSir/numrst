@@ -258,6 +258,12 @@ mod tests {
         let result = eig_jacobi(&a, 1e-12).unwrap();
         println!("{}", result.reconstruct().unwrap());
     }
+
+    #[test]
+    fn test_eig_jacobi_zeros() {
+        let a = NdArray::<f64>::zeros((4, 4)).unwrap();
+        let _ = eig_jacobi(&a, 1e-12).unwrap();
+    }
     
     #[test]
     fn test_eig_qr_identity() {
