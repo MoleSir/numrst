@@ -39,8 +39,8 @@ pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<NdArray<T>> {
     let (n, _) = mat.shape();
     let l_arr = NdArray::<T>::zeros(mat.shape())?;
 
-    {
-        let mut l = l_arr.matrix_view_mut().unwrap();
+    unsafe {
+        let mut l = l_arr.matrix_view().unwrap();
         for i in 0..n {
             // diag
             let mut sum = T::zero();

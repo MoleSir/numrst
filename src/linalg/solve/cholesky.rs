@@ -14,32 +14,33 @@ pub fn cholesky_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<N
     let y = y.vector_view()?;
     let n = y.len();
 
-
-    // Step 1: forward solve L z = y
-    let z_arr = NdArray::<T>::zeros(n)?;   
-    let mut z = z_arr.vector_view_mut().unwrap();
-    for i in 0..n {
-        let mut sum = T::zero();
-        for k in 0..i {
-            sum = sum + l.g(i, k) * z.g(k);
-        }
-        z.s(i, (y.g(i) - sum) / l.g(i, i));
-    }
-
-    // Step 2: backward solve L^T x = z
-    let x_arr = NdArray::<T>::zeros(n)?;
-    {
-        let mut x = x_arr.vector_view_mut().unwrap();
-        for i in (0..n).rev() {
+    unsafe {
+        // Step 1: forward solve L z = y
+        let z_arr = NdArray::<T>::zeros(n)?;   
+        let mut z = z_arr.vector_view().unwrap();
+        for i in 0..n {
             let mut sum = T::zero();
-            for k in i+1..n {
-                sum = sum + l.g(k, i) * x.g(k);
+            for k in 0..i {
+                sum = sum + l.g(i, k) * z.g(k);
             }
-            x.s(i, (z.g(i) - sum) / l.g(i, i));
+            z.s(i, (y.g(i) - sum) / l.g(i, i));
         }
-    }
 
-    Ok(x_arr)
+        // Step 2: backward solve L^T x = z
+        let x_arr = NdArray::<T>::zeros(n)?;
+        {
+            let mut x = x_arr.vector_view().unwrap();
+            for i in (0..n).rev() {
+                let mut sum = T::zero();
+                for k in i+1..n {
+                    sum = sum + l.g(k, i) * x.g(k);
+                }
+                x.s(i, (z.g(i) - sum) / l.g(i, i));
+            }
+        }
+
+        Ok(x_arr)
+    }
 }
 
 #[cfg(test)]

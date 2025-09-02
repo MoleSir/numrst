@@ -9,35 +9,37 @@ pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
     let l = l.matrix_view()?;
     let u = u.matrix_view()?;
 
-    // Ax = y --> LUx = y --> Lz = y & Ux = z
-    let n = y.len();
+    unsafe {
+        // Ax = y --> LUx = y --> Lz = y & Ux = z
+        let n = y.len();
 
-    // Forward substitution: L z = y
-    // L's diag are all T::one()
-    let z_arr = NdArray::<T>::zeros(n)?;
-    let mut z = z_arr.vector_view_mut()?;
-    for i in 0..n {
-        let mut sum = T::zero();
-        for j in 0..i {
-            sum = sum + l.g(i, j) * z.g(j);
-        }
-        z.s(i, (y.g(i) - sum) / l.g(i, i));
-    }
-
-    // Backward substitution: U x = z
-    let x_arr = NdArray::<T>::zeros(n)?;
-    {
-        let mut x = x_arr.vector_view_mut().unwrap();
-        for i in (0..n).rev() {
+        // Forward substitution: L z = y
+        // L's diag are all T::one()
+        let z_arr = NdArray::<T>::zeros(n)?;
+        let mut z = z_arr.vector_view()?;
+        for i in 0..n {
             let mut sum = T::zero();
-            for j in i+1..n {
-                sum = sum + u.g(i, j) * x.g(j);
+            for j in 0..i {
+                sum = sum + l.g(i, j) * z.g(j);
             }
-            x.s(i, (z.g(i) - sum) / u.g(i, i));
+            z.s(i, (y.g(i) - sum) / l.g(i, i));
         }
-    }
 
-    Ok(x_arr)
+        // Backward substitution: U x = z
+        let x_arr = NdArray::<T>::zeros(n)?;
+        {
+            let mut x = x_arr.vector_view().unwrap();
+            for i in (0..n).rev() {
+                let mut sum = T::zero();
+                for j in i+1..n {
+                    sum = sum + u.g(i, j) * x.g(j);
+                }
+                x.s(i, (z.g(i) - sum) / u.g(i, i));
+            }
+        }
+
+        Ok(x_arr)
+    }
 }
 
 pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
@@ -51,35 +53,36 @@ pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArra
     
     let n = py.len();
 
-    // L·z = P·y
-    let z_arr = NdArray::<T>::zeros(n)?;
-    let mut z = z_arr.vector_view_mut().unwrap();
-    for i in 0..n {
-        let mut sum = T::zero();
-        for j in 0..i {
-            sum = sum + l.g(i, j) * z.g(j);
-        }
-        z.s(i, py.g(i) - sum);
-    }
-
-    // U·x = z
-    let x_arr = NdArray::<T>::zeros(n)?;
-    {
-        let mut x = x_arr.vector_view_mut().unwrap();
-        for i in (0..n).rev() {
+    unsafe {
+        // L·z = P·y
+        let z_arr = NdArray::<T>::zeros(n)?;
+        let mut z = z_arr.vector_view().unwrap();
+        for i in 0..n {
             let mut sum = T::zero();
-            for j in i+1..n {
-                sum = sum + u.g(i, j) * x.g(j);
+            for j in 0..i {
+                sum = sum + l.g(i, j) * z.g(j);
             }
-            let u_ii = u.g(i, i);
-            if u_ii.abs() <= T::epsilon() {
-                return Err(LinalgError::SingularMatrix)?;
-            }
-            x.s(i, (z.g(i) - sum) / u_ii);
+            z.s(i, py.g(i) - sum);
         }
-    }
 
-    Ok(x_arr)
+        // U·x = z
+        let x_arr = NdArray::<T>::zeros(n)?;
+        {
+            let mut x = x_arr.vector_view().unwrap();
+            for i in (0..n).rev() {
+                let mut sum = T::zero();
+                for j in i+1..n {
+                    sum = sum + u.g(i, j) * x.g(j);
+                }
+                let u_ii = u.g(i, i);
+                if u_ii.abs() <= T::epsilon() {
+                    return Err(LinalgError::SingularMatrix)?;
+                }
+                x.s(i, (z.g(i) - sum) / u_ii);
+            }
+        }
+        Ok(x_arr)
+    }
 }
 
 #[cfg(test)]

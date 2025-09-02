@@ -13,8 +13,9 @@ mod condition;
 use std::sync::Arc;
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{view::{MatrixView, MatrixViewMut, VectorView, VectorViewMut}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, WithDType};
+use super::{view::{MatrixView, VectorView}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, WithDType};
 pub use iter::*;
+pub use indexer::*;
 
 #[derive(Clone)]
 pub struct NdArray<D>(pub(crate) Arc<NdArrayImpl<D>>);
@@ -169,27 +170,12 @@ impl<T: WithDType> NdArray<T> {
 }
 
 impl<T: WithDType> NdArray<T> {
-    // pub fn to_matrix(&self) -> Result<Matrix<T>> {
-    //     Matrix::<T>::from_ndarray(self)
-    // }
-
-    // pub fn to_vector(&self) -> Result<Vector<T>> {
-    //     Vector::<T>::from_ndarray(self)
-    // }
-    pub fn matrix_view<'a>(&'a self) -> Result<MatrixView<'a, T>> {
+    pub fn matrix_view(&self) -> Result<MatrixView<'_, T>> {
         MatrixView::from_ndarray(self)
     }
 
-    pub fn matrix_view_mut<'a>(&'a self) -> Result<MatrixViewMut<'a, T>> {
-        MatrixViewMut::from_ndarray(self)
-    }
-
-    pub fn vector_view<'a>(&'a self) -> Result<VectorView<'a, T>> {
+    pub fn vector_view(&self) -> Result<VectorView<'_, T>> {
         VectorView::from_ndarray(self)
-    }
-
-    pub fn vector_view_mut<'a>(&'a self) -> Result<VectorViewMut<'a, T>> {
-        VectorViewMut::from_ndarray(self)
     }
 }
 

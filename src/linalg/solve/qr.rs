@@ -10,31 +10,33 @@ pub fn qr_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
 
     let n = r.shape().1;                        // number of unknowns
     let rhs_arr = NdArray::<T>::zeros(n)?; // rhs = Q^T * y
-    let mut rhs = rhs_arr.vector_view_mut().unwrap();
+    let mut rhs = rhs_arr.vector_view().unwrap();
 
-    // Step 2: compute Q^T * y
-    for i in 0..n {
-        let mut sum = T::zero();
-        for j in 0..y.len() {
-            sum += q.g(j, i) * y.g(j);
-        }
-        rhs.s(i, sum);
-    }
-
-    // Step 3: backward substitution R x = rhs
-    let x_arr = NdArray::<T>::zeros(n)?;
-    {
-        let mut x = x_arr.vector_view_mut().unwrap();
-        for i in (0..n).rev() {
+    unsafe {
+        // Step 2: compute Q^T * y
+        for i in 0..n {
             let mut sum = T::zero();
-            for j in i+1..n {
-                sum += r.g(i, j) * x.g(j);
+            for j in 0..y.len() {
+                sum += q.g(j, i) * y.g(j);
             }
-            x.s(i, (rhs.g(i) - sum) / r.g(i, i));
-        }    
-    }
+            rhs.s(i, sum);
+        }
 
-    Ok(x_arr)
+        // Step 3: backward substitution R x = rhs
+        let x_arr = NdArray::<T>::zeros(n)?;
+        {
+            let mut x = x_arr.vector_view().unwrap();
+            for i in (0..n).rev() {
+                let mut sum = T::zero();
+                for j in i+1..n {
+                    sum += r.g(i, j) * x.g(j);
+                }
+                x.s(i, (rhs.g(i) - sum) / r.g(i, i));
+            }    
+        }
+
+        Ok(x_arr)
+    }
 }   
 
 #[cfg(test)]

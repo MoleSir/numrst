@@ -149,7 +149,7 @@ pub enum Error {
     },
 
     #[error("index {index} of out range in {len} len vector")]
-    VectorIndexOotOfRange {
+    VectorIndexOutOfRange {
         len: usize,
         index: usize,
     },

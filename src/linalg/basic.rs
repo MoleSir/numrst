@@ -16,8 +16,10 @@ pub fn dot<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<T> {
         Err(LinalgError::VectorLenMismatch { len1: a.len(), len2: b.len(), op: "dot" })?;
     }
 
-    let result = a.into_iter().zip(b.into_iter()).map(|(a, b)| a * b).sum::<T>();
-    Ok(result)
+    unsafe {
+        let result = a.iter().zip(b.iter()).map(|(a, b)| a * b).sum::<T>();
+        Ok(result)   
+    }
 }
 
 pub fn outer<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>> {
@@ -27,20 +29,19 @@ pub fn outer<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>> 
     let m = a.len();
     let n = b.len();
 
-    let res_arr = NdArray::zeros((m, n))?;
-    {
-        let mut res = res_arr.matrix_view_mut().unwrap();
+    unsafe {
+        let res_arr = NdArray::zeros((m, n))?;
+        let mut res = res_arr.matrix_view().unwrap();
         for i in 0..m {
             for j in 0..n {
                 let v = a.g(i) * b.g(j);
                 res.s(i, j, v);
             }
         }
+        Ok(res_arr)
+
     }
-
-    Ok(res_arr)
 }
-
 
 pub fn matmul<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>> {
     let a = a.matrix_view()?;
@@ -54,21 +55,21 @@ pub fn matmul<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<NdArray<T>>
     }
     let z = k1;
 
-    let res_arr = NdArray::<T>::zeros((m, n))?;
-    {
-        let mut res = res_arr.matrix_view_mut().unwrap();
+    unsafe {
+        let res_arr = NdArray::<T>::zeros((m, n))?;
+        let mut res = res_arr.matrix_view().unwrap();
         for i in 0..m {
             for j in 0..n {
                 let mut sum = T::zero();
                 for k in 0..z {
                     sum += a.g(i, k) * b.g(k, j);
                 }
-                res.s(i, j, sum);
+                res[(i, j)] = sum;
             }
         }
+        Ok(res_arr)
     }
 
-    Ok(res_arr)
 }
 
 pub fn mat_mul_vec<T: NumDType>(mat: &NdArray<T>, vec: &NdArray<T>) -> Result<NdArray<T>> {
@@ -83,9 +84,9 @@ pub fn mat_mul_vec<T: NumDType>(mat: &NdArray<T>, vec: &NdArray<T>) -> Result<Nd
     }
     let k = k1; // (m, k) @ (k) = (m)
 
-    let res_arr = NdArray::<T>::zeros(m)?;
-    {
-        let mut res = res_arr.vector_view_mut().unwrap();
+    unsafe  {
+        let res_arr = NdArray::<T>::zeros(m)?;
+        let mut res = res_arr.vector_view().unwrap();
         for i in 0..m {
             let mut sum = T::zero();
             for j in 0..k {
@@ -93,9 +94,9 @@ pub fn mat_mul_vec<T: NumDType>(mat: &NdArray<T>, vec: &NdArray<T>) -> Result<Nd
             }
             res.s(i, sum);
         }
-    }
 
-    Ok(res_arr)
+        Ok(res_arr)
+    }
 }
 
 pub fn vec_mul_mat<T: FloatDType>(vec: &NdArray<T>, mat: &NdArray<T>) -> Result<NdArray<T>> {
@@ -110,9 +111,9 @@ pub fn vec_mul_mat<T: FloatDType>(vec: &NdArray<T>, mat: &NdArray<T>) -> Result<
     }
     let k = k1; // (1, k) @ (k, n) = (1, n)
 
-    let res_arr = NdArray::<T>::zeros(n)?;
-    {
-        let mut res = res_arr.vector_view_mut().unwrap();
+    unsafe {
+        let res_arr = NdArray::<T>::zeros(n)?;
+        let mut res = res_arr.vector_view().unwrap();
         for i in 0..n {
             let mut sum = T::zero();
             for j in 0..k {
@@ -120,9 +121,10 @@ pub fn vec_mul_mat<T: FloatDType>(vec: &NdArray<T>, mat: &NdArray<T>) -> Result<
             }
             res.s(i, sum);
         }
+
+        Ok(res_arr)
     }
 
-    Ok(res_arr)
 }
 
 pub fn trace<T: NumDType>(mat: &NdArray<T>) -> Result<T> {
@@ -132,11 +134,13 @@ pub fn trace<T: NumDType>(mat: &NdArray<T>) -> Result<T> {
         Err(LinalgError::ExpectMatrixSquare { shape: mat.shape(), op: "trace" })?;
     }
     
-    let t = (0..m).into_iter()
+    unsafe {
+        let t = (0..m).into_iter()
         .map(|i| mat.g(i, i))
         .product::<T>();
 
-    Ok(t)
+        Ok(t)
+    }
 }
 
 pub fn is_square<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
@@ -148,7 +152,7 @@ pub fn is_square<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
 pub fn is_symmetric<T: NumDType>(mat: &NdArray<T>) -> Result<bool> {
     let mat = mat.matrix_view()?;
     let mat_trans = mat.transpose();
-    Ok(mat.eqal(&mat_trans))
+    Ok( unsafe { mat.eqal(&mat_trans) })
 }
 
 pub fn check_square<T: NumDType>(mat: &NdArray<T>, op: &'static str) -> Result<()> {

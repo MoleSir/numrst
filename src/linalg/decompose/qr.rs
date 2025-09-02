@@ -39,23 +39,24 @@ use crate::{FloatDType, NdArray, Result};
 pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
     let a = arr.matrix_view()?;    
     let (m, n) = a.shape();
-    let r_arr = a.copy(); // (m, n)
-    let q_arr = NdArray::<T>::eye(m)?; // (m, m)
+    
+    unsafe {
+        let r_arr = a.copy(); // (m, n)
+        let q_arr = NdArray::<T>::eye(m)?; // (m, m)
 
-    {
-        let mut r = r_arr.matrix_view_mut().unwrap();
-        let mut q = q_arr.matrix_view_mut().unwrap();
+        let mut r = r_arr.matrix_view().unwrap();
+        let mut q = q_arr.matrix_view().unwrap();
 
         for k in 0..n {
             let x_arr = NdArray::<T>::zeros(m - k)?;
-            let mut x = x_arr.vector_view_mut().unwrap(); 
+            let mut x = x_arr.vector_view().unwrap(); 
             for i in 0..(m - k) {
                 x.s(i, r.g(k + i, k));
             }
     
             // v
             let v_arr = x.copy();
-            let mut v = v_arr.vector_view_mut().unwrap(); 
+            let mut v = v_arr.vector_view().unwrap(); 
 
             let sign = if x.g(0) >= T::zero() { T::one() } else { -T::one() };
             let norm_x = x.norm();
@@ -87,9 +88,9 @@ pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
                 }
             }
         }
+        
+        Ok((q_arr, r_arr))
     }
-
-    Ok((q_arr, r_arr))
 }
 
 #[cfg(test)]

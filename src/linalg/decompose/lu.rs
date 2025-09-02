@@ -42,9 +42,9 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
     let u_arr = NdArray::<T>::zeros((m, n))?;
     let k = m.min(n);
 
-    {
-        let mut l = l_arr.matrix_view_mut()?;
-        let mut u = u_arr.matrix_view_mut()?;
+    unsafe  {
+        let mut l = l_arr.matrix_view()?;
+        let mut u = u_arr.matrix_view()?;
     
         for i in 0..k {
             // U
@@ -122,55 +122,57 @@ pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, N
     let mat = arr.matrix_view()?;
     let (m, n) = mat.shape();
 
-    let u_arr = mat.copy(); // (m, n)
-    let l_arr = NdArray::<T>::eye(m)?; // (m, m)
-    let p_arr = NdArray::<T>::eye(m)?;
-
-    {
-
-        let mut u = u_arr.matrix_view_mut().unwrap();
-        let mut l = l_arr.matrix_view_mut().unwrap();
-        let mut p = p_arr.matrix_view_mut().unwrap();
+    unsafe {
+        let u_arr = mat.copy(); // (m, n)
+        let l_arr = NdArray::<T>::eye(m)?; // (m, m)
+        let p_arr = NdArray::<T>::eye(m)?;
     
-        let k = m.min(n);
+        {
     
-        for i in 0..k {
-            let mut pivot_row = i;
-            let mut max_val = u.g(i, i).abs();
-            for j in (i+1)..m {
-                let val = u.g(j, i).abs();
-                if val > max_val {
-                    max_val = val;
-                    pivot_row = j;
+            let mut u = u_arr.matrix_view().unwrap();
+            let mut l = l_arr.matrix_view().unwrap();
+            let mut p = p_arr.matrix_view().unwrap();
+        
+            let k = m.min(n);
+        
+            for i in 0..k {
+                let mut pivot_row = i;
+                let mut max_val = u.g(i, i).abs();
+                for j in (i+1)..m {
+                    let val = u.g(j, i).abs();
+                    if val > max_val {
+                        max_val = val;
+                        pivot_row = j;
+                    }
                 }
-            }
-    
-            if pivot_row != i {
-                u.swap_rows(i, pivot_row)?;
-                p.swap_rows(i, pivot_row)?;
-                if i > 0 {
-                    l.swap_rows_partial(i, pivot_row, i)?;
+        
+                if pivot_row != i {
+                    u.swap_rows(i, pivot_row)?;
+                    p.swap_rows(i, pivot_row)?;
+                    if i > 0 {
+                        l.swap_rows_partial(i, pivot_row, i)?;
+                    }
                 }
-            }
-    
-            let pivot = u.g(i, i);
-            if pivot.abs() <= T::epsilon() {
-                continue;
-            }
-    
-            for j in (i+1)..m {
-                let factor = u.g(j, i) / pivot;
-                l.s(j, i, factor);
-    
-                for kcol in i..n {
-                    let new_val = u.g(j, kcol) - factor * u.g(i, kcol);
-                    u.s(j, kcol, new_val);
+        
+                let pivot = u.g(i, i);
+                if pivot.abs() <= T::epsilon() {
+                    continue;
+                }
+        
+                for j in (i+1)..m {
+                    let factor = u.g(j, i) / pivot;
+                    l.s(j, i, factor);
+        
+                    for kcol in i..n {
+                        let new_val = u.g(j, kcol) - factor * u.g(i, kcol);
+                        u.s(j, kcol, new_val);
+                    }
                 }
             }
         }
+    
+        Ok((p_arr, l_arr, u_arr))
     }
-
-    Ok((p_arr, l_arr, u_arr))
 }
 
 #[cfg(test)]

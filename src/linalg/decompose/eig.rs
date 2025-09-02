@@ -38,7 +38,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
         for i in 0..n {
             for j in 0..n {
                 if i != j {
-                    off_diag_norm += hv.g(i,j).abs(); // 加 abs
+                    off_diag_norm += unsafe { hv.g(i,j).abs() };
                 }
             }
         }
@@ -50,7 +50,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
     }
 
     let hv = h.matrix_view().unwrap();
-    let eig_values = (0..n).map(|i| hv.g(i,i)).collect::<Vec<_>>();
+    let eig_values = (0..n).map(|i| unsafe { hv.g(i,i) }).collect::<Vec<_>>();
     Ok(EigResult { eig_values, eig_vectors: v })
 }
 
@@ -62,19 +62,21 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
 /// - https://oldsite.pup.ac.in/e-content/science/physics/mscphy58.pdf
 /// 
 pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T>> {
-    fn max_elem<T: FloatDType>(mat: &MatrixView<'_, T>) -> (T, (usize, usize)) {
-        let (n, _) = mat.shape();
-        let mut max_value = mat.g(0, 1).abs();
-        let mut max_position = (0, 1);
-        for i in 0..(n - 1) {
-            for j in (i+1)..n {
-                if mat.g(i, j).abs() > max_value {
-                    max_value = mat.g(i, j).abs();
-                    max_position = (i, j);
+    unsafe fn max_elem<T: FloatDType>(mat: &MatrixView<'_, T>) -> (T, (usize, usize)) {
+        unsafe {
+            let (n, _) = mat.shape();
+            let mut max_value = mat.g(0, 1).abs();
+            let mut max_position = (0, 1);
+            for i in 0..(n - 1) {
+                for j in (i+1)..n {
+                    if mat.g(i, j).abs() > max_value {
+                        max_value = mat.g(i, j).abs();
+                        max_position = (i, j);
+                    }
                 }
             }
+            (max_value, max_position)
         }
-        (max_value, max_position)
     }
 
     if !linalg::is_symmetric(mat)? {
@@ -87,68 +89,72 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
         Err(LinalgError::ExpectMatrixSquare { shape: mat_view.shape(), op: "eig_jacobi" })?;
     }
 
-    let max_rot = 5 * n.pow(2);
-    let mut a = mat_view.copy();
-    let mut r = NdArray::<T>::eye(n)?;
-
-    for _ in 0..max_rot {
-        let av = a.matrix_view().unwrap();
-        let (max_value, (p, q)) = max_elem(&av);
-        assert!(p != q);
-        if max_value < tol {
-            let eig_vals: Vec<T> = (0..n).map(|i| av.g(i,i)).collect();
-
-            // sort by eig_vals
-            let mut idx: Vec<usize> = (0..n).collect();
-            idx.sort_by(|&i, &j| eig_vals[j].abs().partial_cmp(&eig_vals[i].abs()).unwrap());
-            let eig_vals_sorted: Vec<T> = idx.iter().map(|&i| eig_vals[i]).collect();
-            let eig_vecs_sorted = r.copy();
-            {
-                let mut mv = eig_vecs_sorted.matrix_view_mut().unwrap();
-                let rv = r.matrix_view().unwrap();
-
-                for (new_j, &old_j) in idx.iter().enumerate() {
-                    for i in 0..n {
-                        mv.s(i, new_j, rv.g(i, old_j));
+    unsafe {
+        let max_rot = 5 * n.pow(2);
+        let mut a = mat_view.copy();
+        let mut r = NdArray::<T>::eye(n)?;
+    
+        for _ in 0..max_rot {
+            let av = a.matrix_view().unwrap();
+            let (max_value, (p, q)) = max_elem(&av);
+            assert!(p != q);
+            if max_value < tol {
+                let eig_vals: Vec<T> = (0..n).map(|i| av.g(i,i)).collect();
+    
+                // sort by eig_vals
+                let mut idx: Vec<usize> = (0..n).collect();
+                idx.sort_by(|&i, &j| eig_vals[j].abs().partial_cmp(&eig_vals[i].abs()).unwrap());
+                let eig_vals_sorted: Vec<T> = idx.iter().map(|&i| eig_vals[i]).collect();
+                let eig_vecs_sorted = r.copy();
+                {
+                    let mut mv = eig_vecs_sorted.matrix_view().unwrap();
+                    let rv = r.matrix_view().unwrap();
+    
+                    for (new_j, &old_j) in idx.iter().enumerate() {
+                        for i in 0..n {
+                            mv.s(i, new_j, rv.g(i, old_j));
+                        }
                     }
                 }
+            
+                return Ok(EigResult::new(eig_vals_sorted, eig_vecs_sorted));
             }
-        
-            return Ok(EigResult::new(eig_vals_sorted, eig_vecs_sorted));
+    
+            let (ai, ri) = jacobi_rotate(&a, p, q)?;
+            a = ai;
+            r = linalg::matmul(&r, &ri)?;
         }
-
-        let (ai, ri) = jacobi_rotate(&a, p, q)?;
-        drop(av);
-        a = ai;
-        r = linalg::matmul(&r, &ri)?;
+    
+        Err(Error::Msg("Jacobi method did not converge".to_string()))
     }
-
-    Err(Error::Msg("Jacobi method did not converge".to_string()))
 }
 
 fn jacobi_rotate<T: FloatDType>(arr: &NdArray<T>, p: usize, q: usize) -> Result<(NdArray<T>, NdArray<T>)> {
     let mat = arr.matrix_view()?;
     let (m, _) = mat.shape();
-    if mat.g(p, q) == T::zero() {
-        return Ok((arr.clone(), NdArray::<T>::eye(m)?));
-    }
 
-    let (a, b, ab) = (mat.g(p, p), mat.g(q, q), mat.g(p, q));
-    let (c, s) = jacobi_calculate_cs(a, b, ab);
-
-    let r = NdArray::<T>::eye(m)?;
-    {
-        let mut r = r.matrix_view_mut()?;
-        r.s(p, p, c); 
-        r.s(q, q, c); 
-        r.s(p, q, s); 
-        r.s(q, p, -s); 
-    }
-
-    let a = linalg::matmul(&r.transpose_last()?, arr)?;
-    let a = linalg::matmul(&a, &r)?;
+    unsafe {
+        if mat.g(p, q) == T::zero() {
+            return Ok((arr.clone(), NdArray::<T>::eye(m)?));
+        }
     
-    Ok((a, r))
+        let (a, b, ab) = (mat.g(p, p), mat.g(q, q), mat.g(p, q));
+        let (c, s) = jacobi_calculate_cs(a, b, ab);
+    
+        let r = NdArray::<T>::eye(m)?;
+        {
+            let mut r = r.matrix_view()?;
+            r.s(p, p, c); 
+            r.s(q, q, c); 
+            r.s(p, q, s); 
+            r.s(q, p, -s); 
+        }
+    
+        let a = linalg::matmul(&r.transpose_last()?, arr)?;
+        let a = linalg::matmul(&a, &r)?;
+        
+        Ok((a, r))
+    }
 }
 
 fn jacobi_calculate_cs<T: FloatDType>(a: T, b: T, ab: T) -> (T, T) {

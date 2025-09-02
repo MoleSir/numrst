@@ -104,8 +104,11 @@ mod test_bidiagonal {
                 } else {
                     j == i || j + 1 == i
                 };
-                if !allowed {
-                    assert!(bv.g(i, j).abs() < 1e-10, "B should be bidiagonal, but got {} at ({}, {})", bv.g(i, j), i, j);
+
+                unsafe {
+                    if !allowed {
+                        assert!(bv.g(i, j).abs() < 1e-10, "B should be bidiagonal, but got {} at ({}, {})", bv.g(i, j), i, j);
+                    }
                 }
             }
         }
