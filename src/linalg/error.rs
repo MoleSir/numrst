@@ -45,4 +45,7 @@ pub enum LinalgError {
 
     #[error("expect a symmetric matrix in {op}")]
     ExpectSymmetricMatrix { op: &'static str },
+
+    #[error("Jacobi method did not converge")]
+    JacobiMethodDidNotConverge,
 }

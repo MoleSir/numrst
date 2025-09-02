@@ -1,4 +1,4 @@
-use crate::{Error, FloatDType, NdArray, NumDType, Range, Result, Storage, WithDType};
+use crate::{linalg::LinalgError, Error, FloatDType, NdArray, NumDType, Range, Result, Storage, WithDType};
 use std::marker::PhantomData;
 use super::{StorageView, VectorView};
 
@@ -95,7 +95,7 @@ impl<'a, T: WithDType> VectorView<'a, T> {
 
     pub fn swap(&mut self, other: &mut Self) -> Result<()> {
         if self.len() != other.len() {
-            return Err(Error::Msg("len mismatch".into()))?;
+            return Err(LinalgError::VectorLenMismatch { len1: self.len, len2: other.len, op: "swap" })?;
         }
 
         let stride = self.stride;
@@ -155,7 +155,7 @@ impl<'a, T: FloatDType> VectorView<'a, T> {
 impl<'a, T: NumDType> VectorView<'a, T> {
     pub unsafe fn dot(&self, rhs: &Self) -> Result<T> {
         if self.len() != rhs.len() {
-            Err(Error::Msg("mis match size".into()))?;
+            Err(Error::LenMismatchVectorDot { lhs: self.len(), rhs: rhs.len() })?;
         }
         unsafe { Ok(self.iter().zip(rhs.iter())
             .map(|(a, b)| a * b)

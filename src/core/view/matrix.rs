@@ -32,6 +32,11 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         unsafe { self.storage.get(storage_index) }
     }
 
+    pub unsafe fn g_mut(&mut self, row: usize, col: usize) -> &mut T {
+        let storage_index = self.storage_index(row, col);
+        unsafe { self.storage.get_mut(storage_index) }
+    }
+
     pub unsafe fn set(&mut self, row: usize, col: usize, value: T) -> Option<()> {
         if row >= self.row_size() || col >= self.col_size() {
             None
@@ -109,9 +114,7 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
                     let end = range.end.unwrap_or(max_end);
                     let end = end.min(max_end);
                     let step = range.step;
-                    if step == 0 {
-                        return Err(Error::Msg("slice step cannot be zero".to_string()));
-                    }
+                    assert!(step != 0);
                     let len = (start..end).step_by(step).count();
                     Ok((start, step, len))
                 }
@@ -144,7 +147,21 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         NdArray::from_storage(storage, (self.row_size(), self.col_size()))
     }
 
-    pub fn transpose(&'a self) -> Self {
+    pub unsafe fn copy_from(&mut self, source: &Self) -> Result<()> {
+        if self.shape() != source.shape() {
+            Err(Error::ShapeMismatchCopyFrom { dst: self.shape().into(), src: source.shape().into() })?
+        }
+
+        for r in 0..self.row_size() {
+            for c in 0..self.col_size() {
+                self[(r, c)] = source[(r, c)];
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn transpose(&self) -> Self {
         Self {
             shape: (self.col_size(), self.row_size()),
             strides: (self.col_stride(), self.row_stride()),
@@ -193,11 +210,19 @@ impl<'a, T: WithDType> MatrixView<'a, T> {
         }
     }
 
-    pub unsafe fn iter(&'a self) -> MatrixIterUsf<'a, T> {
-        MatrixIterUsf { 
+    pub unsafe fn iter(&self) -> MatrixViewIter<'_, T> {
+        MatrixViewIter { 
             view: self.clone(), 
             row: 0,
             col: 0,
+        }
+    }
+
+    pub unsafe fn diag(&self) -> MatrixDiagIter<'_, T> {
+        MatrixDiagIter {
+            view: self.clone(),
+            len: self.row_size().min(self.col_size()),
+            index: 0
         }
     }
 
@@ -251,10 +276,7 @@ impl<'a, T: NumDType> MatrixView<'a, T> {
         let n = rhs.col_size();
 
         if k != rhs.row_size() {
-            return Err(Error::Msg(format!(
-                "Matrix dimension mismatch: self is {}x{}, rhs is {}x{}",
-                m, k, rhs.row_size(), n
-            )));
+            return Err(Error::ShapeMismatchBinaryOp { lhs: self.shape().into(), rhs: rhs.shape().into(), op: "matmul" })
         }
 
         let mut data = vec![T::zero(); m * n];
@@ -284,13 +306,13 @@ impl<'a, T: NumDType> MatrixView<'a, T> {
     }
 }
 
-pub struct MatrixIterUsf<'a, T: WithDType> {
+pub struct MatrixViewIter<'a, T: WithDType> {
     view: MatrixView<'a, T>,
     row: usize,
     col: usize,
 }
 
-impl<'a, T: WithDType> Iterator for MatrixIterUsf<'a, T> {
+impl<'a, T: WithDType> Iterator for MatrixViewIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         if self.col == self.view.col_size() {
@@ -319,5 +341,24 @@ impl<'a, T: WithDType> std::ops::IndexMut<(usize, usize)> for MatrixView<'a, T> 
     fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut T {
         let storage_index = self.storage_index(row, col);
         unsafe { self.storage.get_mut(storage_index) }
+    }
+}
+
+pub struct MatrixDiagIter<'a, T: WithDType> {
+    view: MatrixView<'a, T>,
+    len: usize,
+    index: usize,
+}
+
+impl<'a, T: WithDType> Iterator for MatrixDiagIter<'a, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index == self.len {
+            None
+        } else {
+            let v = unsafe { self.view.g(self.index, self.index) };
+            self.index += 1;
+            Some(v)
+        }
     }
 }

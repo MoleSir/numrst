@@ -1,4 +1,4 @@
-use crate::{linalg::{self, LinalgError}, view::MatrixView, Error, FloatDType, NdArray, Result};
+use crate::{linalg::{self, LinalgError}, view::MatrixView, FloatDType, NdArray, Result};
 
 pub struct EigResult<T: FloatDType> {
     pub eig_values: Vec<T>,
@@ -125,7 +125,7 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
             r = linalg::matmul(&r, &ri)?;
         }
     
-        Err(Error::Msg("Jacobi method did not converge".to_string()))
+        Err(LinalgError::JacobiMethodDidNotConverge)?
     }
 }
 
