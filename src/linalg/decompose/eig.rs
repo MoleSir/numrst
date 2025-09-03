@@ -1,8 +1,21 @@
 use crate::{linalg::{self, LinalgError}, view::MatrixViewUsf, FloatDType, NdArray, Result};
 
+/// Result of eigenvalue decomposition of a square matrix
+///
+/// Given a square matrix `A` of size `n x n`, the eigen decomposition factorizes it as:
+/// ```text
+/// A = V * Λ * V⁻¹
+/// ```
+/// where:
+/// - `Λ` is a diagonal matrix containing the eigenvalues
+/// - `V` is a matrix whose columns are the eigenvectors
+///
+/// This struct stores the eigenvalues and eigenvectors in a convenient format.
 pub struct EigResult<T: FloatDType> {
+    /// Eigenvalues of the matrix (length n)
     pub eig_values: Vec<T>,
-    pub eig_vectors:  NdArray<T>,
+    /// Eigenvectors of the matrix (n x n), each column corresponds to an eigenvector
+    pub eig_vectors: NdArray<T>,
 }
 
 impl<T: FloatDType> EigResult<T> {
@@ -10,6 +23,15 @@ impl<T: FloatDType> EigResult<T> {
         Self { eig_values, eig_vectors }
     }
 
+    /// Reconstruct the original matrix from its eigen decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ V * diag(eig_values) * V⁻¹
+    /// ```
+    /// # Notes
+    /// - For symmetric or Hermitian matrices, `V⁻¹` can be replaced by `Vᵀ`.
+    /// - This method returns an approximation due to floating point errors.
     pub fn reconstruct(&self) -> Result<NdArray<T>> {
         let d = NdArray::diag(&self.eig_values).unwrap();
         let v = self.eig_vectors.matmul(&d)?;
@@ -28,7 +50,9 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
     let mut v = NdArray::<T>::eye(n)?;
 
     for _ in 0..max_iters {
-        let (q, r) = linalg::qr(&h)?;
+        let result = linalg::qr(&h)?;
+        let (q, r) = (result.q, result.r);
+
         h = r.matmul(&q)?;
         v = v.matmul(&q)?;
 

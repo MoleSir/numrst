@@ -3,7 +3,9 @@ use super::utils;
 
 pub fn qr_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;
-    let (q, r) = linalg::qr(a)?;
+    let result = linalg::qr(a)?;
+    let (q, r) = (result.q, result.r);
+
     let q = q.matrix_view_unsafe()?;                // Q: (m, m)
     let r = r.matrix_view_unsafe()?;                // R: (m, n)
     let y = y.vector_view_unsafe().unwrap();

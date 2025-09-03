@@ -1,6 +1,29 @@
 use crate::{linalg, Context, Error, FloatDType, IndexOp, NdArray, Result};
 
-pub fn bidiagonal<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, NdArray<T>)> {
+/// Result of bidiagonalization of a matrix
+pub struct BidiagonalResult<T: FloatDType> {
+    /// Left orthogonal matrix `U` (n x n)
+    pub u: NdArray<T>,
+    /// Bidiagonal matrix `B` (n x m), only main diagonal and superdiagonal/non-zero
+    pub b: NdArray<T>,
+    /// Right orthogonal matrix `V` (m x m)
+    pub v: NdArray<T>,
+}
+
+impl<T: FloatDType> BidiagonalResult<T> {
+    /// Reconstruct the original matrix from its bidiagonal decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ U * B * Vᵀ
+    /// ```
+    pub fn reconstruct(&self) -> Result<NdArray<T>> {
+        let rec = self.u.matmul(&self.b)?.matmul(&self.v.transpose_last()?)?;
+        Ok(rec)
+    }
+}
+
+pub fn bidiagonal<T: FloatDType>(arr: &NdArray<T>) -> Result<BidiagonalResult<T>> {
     // let mut mat = arr.matrix_view_unsafe()?;
     let (rows, cols) = arr.dims2().context("check matrix")?;
 
@@ -61,9 +84,17 @@ pub fn bidiagonal<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArra
         let new_arr = arr.index((0..n, 0..n))?; // (m, n) => (n, n)
         let u_arr = u_arr.index((0..m, 0..n))?; // (m, m) => (m, n)
         if flipped {
-            Ok((new_arr.transpose_last()?, v_arr, u_arr))
+            Ok(BidiagonalResult {
+                b: new_arr.transpose_last()?, 
+                u: v_arr, 
+                v: u_arr
+            })
         } else {
-            Ok((new_arr, u_arr, v_arr))
+            Ok(BidiagonalResult {
+                b: new_arr,
+                u: u_arr, 
+                v: v_arr
+            })
         }
     }
 }
@@ -103,6 +134,7 @@ fn make_householder<T: FloatDType>(column: impl Iterator<Item = T>) -> Result<Nd
 #[cfg(test)]
 mod test_bidiagonal {
     use crate::{NdArray, linalg};
+    use super::BidiagonalResult;
 
     #[test]
     fn test_bidiagonal_square() {
@@ -114,8 +146,8 @@ mod test_bidiagonal {
             [5., 1., 1., 3., 2.],
         ]).unwrap();
 
-        let (b, u, v) = linalg::bidiagonal(&a).unwrap();
-        validate_bidiag(&a, &b, &u, &v, true);
+        let result = linalg::bidiagonal(&a).unwrap();
+        validate_bidiag(&a, &result, true);
     }
 
     #[test]
@@ -128,8 +160,8 @@ mod test_bidiagonal {
             [7., 1., 1.],
         ]).unwrap();
 
-        let (b, u, v) = linalg::bidiagonal(&a).unwrap();
-        validate_bidiag(&a, &b, &u, &v, true);
+        let result = linalg::bidiagonal(&a).unwrap();
+        validate_bidiag(&a, &result, true);
     }
 
     #[test]
@@ -140,11 +172,13 @@ mod test_bidiagonal {
             [3., 1., 7., 1., 1.],
         ]).unwrap();
 
-        let (b, u, v) = linalg::bidiagonal(&a).unwrap();
-        validate_bidiag(&a, &b, &u, &v, false);
+        let result = linalg::bidiagonal(&a).unwrap();
+        validate_bidiag(&a, &result, false);
     }
 
-    fn validate_bidiag(a: &NdArray<f64>, b: &NdArray<f64>, u: &NdArray<f64>, v: &NdArray<f64>, upper: bool) {
+    fn validate_bidiag(a: &NdArray<f64>, result: &BidiagonalResult<f64>, upper: bool) {
+        let b = &result.b;
+
         let bv = b.matrix_view_unsafe().unwrap();
         let (m, n) = bv.shape();
         for i in 0..m {
@@ -163,7 +197,7 @@ mod test_bidiagonal {
             }
         }
 
-        let recovered = u.matmul(b).unwrap().matmul(&v.transpose_last().unwrap()).unwrap();
+        let recovered = result.reconstruct().unwrap();
         assert!(recovered.allclose(a, 1e-8, 1e-8), "A and U*B*V^T mismatch");
     }
 

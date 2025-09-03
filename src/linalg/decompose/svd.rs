@@ -1,12 +1,38 @@
 use crate::{view::MatrixViewUsf, FloatDType, NdArray, Result};
 
+/// Result of Singular Value Decomposition (SVD) of a matrix
+///
+/// Given a matrix `A` of size `n x m`, the SVD factorizes it as:
+/// ```text
+/// A = U * Σ * Vᵀ
+/// ```
+/// where:
+/// - `U` is an orthogonal matrix (n x n)
+/// - `Σ` (sigma) is a diagonal matrix containing the singular values
+/// - `V` is an orthogonal matrix (m x m)
 pub struct SvdResult<T: FloatDType> {
+    /// Left orthogonal matrix `U` of size (n x n)
+    /// Columns of `U` are the left singular vectors of the original matrix.
     pub u: NdArray<T>,
+
+    /// Singular values of the matrix, stored as a vector
+    /// Represents the diagonal entries of Σ in `A = U * Σ * Vᵀ`.
     pub sigmas: Vec<T>,
+
+    /// Right orthogonal matrix `V` of size (m x m)
+    /// Columns of `V` are the right singular vectors of the original matrix.
     pub v: NdArray<T>,
 }
 
 impl<T: FloatDType> SvdResult<T> {
+    /// Reconstruct the original matrix from its SVD decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ U * diag(sigmas) * Vᵀ
+    /// ```
+    /// # Notes
+    /// - The reconstruction may be approximate due to floating point errors.
     pub fn reconstruct(&self) -> Result<NdArray<T>> {
         let sigma = NdArray::diag(&self.sigmas).unwrap();
         let rec = self.u.matmul(&sigma)?.matmul(&self.v.transpose_last()?)?;
@@ -14,10 +40,46 @@ impl<T: FloatDType> SvdResult<T> {
     }
 }
 
-/// Singular Value Decomposition
-/// 
-/// # Reference
-/// - https://medium.com/gaussian-machine/implementing-svd-algorithm-in-rust-ac1489eb7ca4
+/// Computes the **Singular Value Decomposition (SVD)** of a matrix.
+///
+/// Given an input matrix `A` of shape `(n, m)`, this function factorizes it as:
+///
+/// ```text
+/// A = U * Σ * Vᵀ
+/// ```
+///
+/// where:
+/// - `U` is an orthogonal matrix of shape `(n, n)`, whose columns are the **left singular vectors**.
+/// - `Σ` is a diagonal matrix of shape `(n, m)` containing the **singular values** (non-negative, sorted in descending order).
+/// - `V` is an orthogonal matrix of shape `(m, m)`, whose columns are the **right singular vectors**.
+///
+/// # Returns
+/// A [`SvdResult<T>`] struct containing:
+/// - `u`: the left singular vectors `U`
+/// - `sigmas`: the singular values (as a vector, instead of full Σ matrix)
+/// - `v`: the right singular vectors `V`
+///
+/// # Example
+/// ```rust
+/// # use numrst::{NdArray, linalg};
+/// let a = NdArray::new(&[
+///     [3.0, 1.0, 1.0],
+///     [-1.0, 3.0, 1.0],
+/// ]).unwrap();
+///
+/// let svd_result = linalg::svd(&a).unwrap();
+///
+/// // Singular values
+/// println!("Σ = {:?}", svd_result.sigmas);
+///
+/// // Reconstruct A from U, Σ, V
+/// let a_reconstructed = svd_result.reconstruct().unwrap();
+/// println!("Reconstructed A = {:?}", a_reconstructed);
+/// ```
+///
+/// # References
+/// - [Singular Value Decomposition (Wikipedia)](https://en.wikipedia.org/wiki/Singular_value_decomposition)
+/// - ["Implementing SVD in Rust"](https://medium.com/gaussian-machine/implementing-svd-algorithm-in-rust-ac1489eb7ca4)
 pub fn svd<T: FloatDType>(arr: &NdArray<T>) -> Result<SvdResult<T>> {
     let a = arr.matrix_view_unsafe()?;
     let (n, m) = a.shape(); 

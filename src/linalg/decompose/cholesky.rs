@@ -1,5 +1,32 @@
 use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 
+/// Result of Cholesky decomposition of a positive definite matrix
+///
+/// Given a symmetric positive definite matrix `A` of size `n x n`, the Cholesky
+/// decomposition factorizes it as:
+/// ```text
+/// A = L * Lᵀ
+/// ```
+/// where `L` is a lower triangular matrix.
+pub struct CholeskyResult<T: FloatDType> {
+    /// Lower triangular matrix `L` from the decomposition
+    pub l: NdArray<T>,
+}
+
+impl<T: FloatDType> CholeskyResult<T> {
+    /// Reconstruct the original matrix from its Cholesky decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ L * Lᵀ
+    /// ```
+    /// # Notes
+    /// - The reconstruction may be approximate due to floating point arithmetic.
+    pub fn reconstruct(&self) -> Result<NdArray<T>> {
+        self.l.matmul(&self.l.transpose_last()?)
+    }
+}
+
 /// Computes the Cholesky decomposition of a matrix `A`.
 ///
 /// # Description
@@ -34,7 +61,7 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// let l = linalg::cholesky(&a).unwrap();
 /// // Now a ≈ L * L^T
 /// ```
-pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<NdArray<T>> {
+pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<CholeskyResult<T>> {
     let mat = arr.matrix_view_unsafe()?;
     let (n, _) = mat.shape();
     let l_arr = NdArray::<T>::zeros(mat.shape())?;
@@ -65,7 +92,7 @@ pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<NdArray<T>> {
     
     }
 
-    Ok(l_arr)
+    Ok(CholeskyResult {l: l_arr})
 }
 
 #[cfg(test)]
@@ -81,19 +108,19 @@ mod test {
             [-16., -43., 98.],
         ]).unwrap();
 
-        let l = linalg::cholesky(&a).unwrap();
+        let result = linalg::cholesky(&a).unwrap();
         // println!("{}", l);
 
-        let a_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
+        let a_rec = result.reconstruct().unwrap();
         assert!(a_rec.allclose(&a, 1e-6, 1e-6));
     }
 
     #[test]
     fn test_cholesky_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let l = linalg::cholesky(&a).unwrap();
+        let result = linalg::cholesky(&a).unwrap();
         // println!("{}", l);
-        let rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
+        let rec = result.reconstruct().unwrap();
         assert!(rec.allclose(&a, 1e-6, 1e-6));
     }
 
@@ -106,9 +133,9 @@ mod test {
         ]).unwrap();
         let a = b.matmul(&b.transpose_last().unwrap()).unwrap();
 
-        let l = linalg::cholesky(&a).unwrap();
+        let result = linalg::cholesky(&a).unwrap();
         // println!("{}", l);
-        let a_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
+        let a_rec = result.reconstruct().unwrap();
         assert!(a_rec.allclose(&a, 1e-6, 1e-6));
     }
 
@@ -129,9 +156,9 @@ mod test {
         // h = a @ a.T
         let h = a.matmul(&a.transpose_last().unwrap()).unwrap();
         
-        let l = linalg::cholesky(&h).unwrap();
+        let result = linalg::cholesky(&h).unwrap();
         // println!("{}", l);
-        let h_rec = l.matmul(&l.transpose_last().unwrap()).unwrap();
+        let h_rec = result.reconstruct().unwrap();
         assert!(h_rec.allclose(&h, 1e-6, 1e-6));
     }
 }

@@ -1,5 +1,35 @@
 use crate::{FloatDType, NdArray, Result};
 
+/// Result of QR decomposition of a matrix
+///
+/// Given a matrix `A` of size `n x m`, the QR decomposition factorizes it as:
+/// ```text
+/// A = Q * R
+/// ```
+/// where:
+/// - `Q` is an orthogonal matrix (n x n)  
+/// - `R` is an upper triangular matrix (n x m)
+pub struct QrResult<T: FloatDType> {
+    /// Orthogonal matrix Q
+    pub q: NdArray<T>,
+    /// Upper triangular matrix R
+    pub r: NdArray<T>,
+}
+
+impl<T: FloatDType> QrResult<T> {
+    /// Reconstruct the original matrix from its QR decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ Q * R
+    /// ```
+    /// # Notes
+    /// - Reconstruction may be approximate due to floating point arithmetic.
+    pub fn reconstruct(&self) -> Result<NdArray<T>> {
+        self.q.matmul(&self.r)
+    }
+}
+
 /// Computes the QR decomposition of a matrix `A` using Householder reflections.
 ///
 /// # Description
@@ -32,11 +62,11 @@ use crate::{FloatDType, NdArray, Result};
 ///     [6.0, 167.0, -68.0],
 ///     [-4.0, 24.0, -41.0],
 /// ]).unwrap();
-/// let (q, r) = linalg::qr(&a).unwrap();
+/// let result = linalg::qr(&a).unwrap();
 /// // Now a ≈ Q * R
 /// // Q is orthogonal, R is upper triangular
 /// ```
-pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
+pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<QrResult<T>> {
     let a = arr.matrix_view_unsafe()?;    
     let (m, n) = a.shape();
     
@@ -89,7 +119,7 @@ pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
             }
         }
         
-        Ok((q_arr, r_arr))
+        Ok( QrResult { q: q_arr, r: r_arr })
     }
 }
 
@@ -105,7 +135,8 @@ mod test {
             [-4., 24., -41.],
         ]).unwrap();
 
-        let (q, r) = linalg::qr(&a).unwrap();
+        let result = linalg::qr(&a).unwrap();
+        let (q, r) = (result.q, result.r);
 
         // 检查 A ≈ Q * R
         let a_rec = q.matmul(&r).unwrap();
@@ -121,7 +152,7 @@ mod test {
     #[test]
     fn test_qr_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let (_, _) = linalg::qr(&a).unwrap();
+        let _ = linalg::qr(&a).unwrap();
     }
 
     #[test]
@@ -134,7 +165,8 @@ mod test {
             [1., 0., 0.],
         ]).unwrap();
 
-        let (q, r) = linalg::qr(&a).unwrap();
+        let result = linalg::qr(&a).unwrap();
+        let (q, r) = (result.q, result.r);
 
         // A ≈ Q * R
         let a_rec = q.matmul(&r).unwrap();

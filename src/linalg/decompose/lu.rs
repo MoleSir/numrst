@@ -1,5 +1,35 @@
 use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 
+/// Result of LU decomposition of a square matrix
+///
+/// Given a square matrix `A` of size `n x n`, the LU decomposition factorizes it as:
+/// ```text
+/// A = L * U
+/// ```
+/// where:
+/// - `L` is a lower triangular matrix with ones on the diagonal
+/// - `U` is an upper triangular matrix
+pub struct LuResult<T: FloatDType> {
+    /// Lower triangular matrix L (with unit diagonal)
+    pub l: NdArray<T>,
+    /// Upper triangular matrix U
+    pub u: NdArray<T>,
+}
+
+impl<T: FloatDType> LuResult<T> {
+    /// Reconstruct the original matrix from its LU decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ L * U
+    /// ```
+    /// # Notes
+    /// - Reconstruction may be approximate due to floating point arithmetic.
+    pub fn reconstruct(&self) -> Result<NdArray<T>> {
+        self.l.matmul(&self.u)
+    }
+}
+
 /// Computes the LU decomposition of a matrix `A`.
 ///
 /// # Description
@@ -11,12 +41,12 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// i.e., when a pivot element is too close to zero.
 ///
 /// # Parameters
-/// - `mat`: The input matrix `A` to decompose.
+/// - `arr`: The input matrix `A` to decompose.
 ///
 /// # Returns
-/// - `(L, U)` where:
-///   - `L` is a lower triangular matrix with ones on the diagonal.
-///   - `U` is an upper triangular matrix.
+/// [`LuResult<T>`] containing:
+/// - `l`: Lower triangular matrix with ones on the diagonal.
+/// - `u`: Upper triangular matrix.
 ///
 /// # Notes
 /// - For stability on nearly singular or ill-conditioned matrices, consider using
@@ -31,10 +61,10 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 ///     [3.0, 1.0],
 ///     [1.0, 2.0]
 /// ]).unwrap();
-/// let (l, u) = linalg::lu(&a).unwrap();
+/// let result = linalg::lu(&a).unwrap();
 /// // Now a ≈ L * U
 /// ```
-pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
+pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<LuResult<T>> {
     let mat = arr.matrix_view_unsafe()?;
     let (m, n) = mat.shape();
 
@@ -70,7 +100,40 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
         }
     }
 
-    Ok((l_arr, u_arr))
+    Ok(LuResult { l: l_arr, u: u_arr })
+}
+
+/// Result of PLU decomposition of a square matrix
+///
+/// Given a square matrix `A` of size `n x n`, the PLU decomposition factorizes it as:
+/// ```text
+/// A = P * L * U
+/// ```
+/// where:
+/// - `P` is a permutation matrix representing row swaps
+/// - `L` is a lower triangular matrix with unit diagonal
+/// - `U` is an upper triangular matrix
+pub struct PluResult<T: FloatDType> {
+    /// Permutation matrix P
+    pub p: NdArray<T>,
+    /// Lower triangular matrix L
+    pub l: NdArray<T>,
+    /// Upper triangular matrix U
+    pub u: NdArray<T>,
+}
+
+impl<T: FloatDType> PluResult<T> {
+    /// Reconstruct the original matrix from its PLU decomposition
+    ///
+    /// Computes:
+    /// ```text
+    /// A ≈ P * L * U
+    /// ```
+    /// # Notes
+    /// - Reconstruction may be approximate due to floating point errors.
+    pub fn reconstruct(&self) -> Result<NdArray<T>> {
+        self.p.transpose_last()?.matmul(&self.l)?.matmul(&self.u)
+    }
 }
 
 /// Computes the PLU decomposition of a matrix `A`.
@@ -89,13 +152,13 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
 /// when used to solve linear systems.
 ///
 /// # Parameters
-/// - `mat`: The input matrix `A` to decompose.
+/// - `arr`: The input matrix `A` to decompose.
 ///
 /// # Returns
-/// - `(P, L, U)` where:
-///   - `P` is a permutation matrix representing row swaps.
-///   - `L` is a lower triangular matrix with ones on the diagonal.
-///   - `U` is an upper triangular matrix.
+/// [`PluResult<T>`] containing:
+/// - `p`: Permutation matrix representing row swaps.
+/// - `l`: Lower triangular matrix with ones on the diagonal.
+/// - `u`: Upper triangular matrix.
 ///
 /// # Notes
 /// - `plu` is generally more robust than `lu` for solving linear systems,
@@ -115,10 +178,10 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
 ///     [0.0, 2.0],
 ///     [1.0, 2.0]
 /// ]).unwrap();
-/// let (p, l, u) = linalg::plu(&a).unwrap();
+/// let result = linalg::plu(&a).unwrap();
 /// // Now P * A ≈ L * U
 /// ```
-pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, NdArray<T>)> {
+pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<PluResult<T>> {
     let mat = arr.matrix_view_unsafe()?;
     let (m, n) = mat.shape();
 
@@ -171,7 +234,7 @@ pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, N
             }
         }
     
-        Ok((p_arr, l_arr, u_arr))
+        Ok( PluResult { p: p_arr, l: l_arr, u: u_arr } )
     }
 }
 
@@ -186,8 +249,8 @@ mod test {
             [4., 7., 3.],
             [6., 18., 5.],
         ]).unwrap();
-        let (l, u) = linalg::lu(&arr).unwrap();
-        let arr_rec = l.matmul(&u).unwrap();
+        let result = linalg::lu(&arr).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
 
@@ -198,16 +261,16 @@ mod test {
             [4., 7., 3.],
             [6., 18., 5.],
         ]).unwrap();
-        let (l, u) = linalg::lu(&arr).unwrap();
-        let arr_rec = l.matmul(&u).unwrap();
+        let result = linalg::lu(&arr).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
 
     #[test]
     fn test_lu_identity() {
         let a = NdArray::<f64>::eye(4).unwrap();
-        let (l, u) = linalg::lu(&a).unwrap();
-        let rec = l.matmul(&u).unwrap();
+        let result = linalg::lu(&a).unwrap();
+        let rec = result.reconstruct().unwrap();
         assert!(rec.allclose(&a, 1e-6, 1e-6));
     }
 
@@ -219,9 +282,9 @@ mod test {
             [6., 18., 5.],
         ]).unwrap();
     
-        let (p, l, u) = linalg::plu(&arr).unwrap();
+        let result = linalg::plu(&arr).unwrap();
 
-        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
 
@@ -232,9 +295,9 @@ mod test {
             [4., 7., 3.],
         ]).unwrap(); // 2x3
     
-        let (l, u) = linalg::lu(&arr).unwrap();
+        let result = linalg::lu(&arr).unwrap();
     
-        let arr_rec = l.matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }
 
@@ -258,9 +321,9 @@ mod test {
         ]).unwrap();
         let result = linalg::plu(&a);
         assert!(result.is_ok());
-        let (p, l, u) = result.unwrap();
+        let result = result.unwrap();
 
-        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&a, 1e-4, 1e-4));
     }
 
@@ -274,9 +337,9 @@ mod test {
     
         let result = linalg::plu(&arr);
         assert!(result.is_ok());
-        let (p, l, u) = result.unwrap();
+        let result = result.unwrap();
 
-        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }    
 
@@ -285,17 +348,17 @@ mod test {
         let arr = NdArray::<f64>::randn(0.0, 1.0, (6, 6)).unwrap();
         let result = linalg::lu(&arr);
         assert!(result.is_ok());
-        let (l, u) = result.unwrap();
+        let result = result.unwrap();
 
-        let arr_rec = l.matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
 
         let arr = NdArray::<f64>::randn(0.0, 1.0, (8, 6)).unwrap();
         let result = linalg::lu(&arr);
         assert!(result.is_ok());
-        let (l, u) = result.unwrap();
+        let result = result.unwrap();
 
-        let arr_rec = l.matmul(&u).unwrap();
+        let arr_rec = result.reconstruct().unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }   
 
@@ -304,9 +367,9 @@ mod test {
         let arr = NdArray::<f64>::randn(0.0, 1.0, (6, 6)).unwrap();
         let result = linalg::plu(&arr);
         assert!(result.is_ok());
-        let (p, l, u) = result.unwrap();
+        let result = result.unwrap();
 
-        let arr_rec = p.transpose_last().unwrap().matmul(&l).unwrap().matmul(&u).unwrap();
+        let arr_rec = result.p.transpose_last().unwrap().matmul(&result.l).unwrap().matmul(&result.u).unwrap();
         assert!(arr_rec.allclose(&arr, 1e-4, 1e-4));
     }   
 }

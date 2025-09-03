@@ -3,7 +3,8 @@ use super::utils;
 
 pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;
-    let (l, u) = linalg::lu(a)?;
+    let result = linalg::lu(a)?;
+    let (l, u) = (result.l, result.u);
     let y = y.vector_view_unsafe()?;
 
     let l = l.matrix_view_unsafe()?;
@@ -44,7 +45,8 @@ pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
 
 pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;    
-    let (p, l, u) = linalg::plu(a)?;
+    let result = linalg::plu(a)?;
+    let (p, l, u) = (result.p, result.l, result.u);
     let l = l.matrix_view_unsafe()?;
     let u = u.matrix_view_unsafe()?;
 

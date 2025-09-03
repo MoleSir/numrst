@@ -9,7 +9,7 @@ pub fn cholesky_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<N
     // L @ L.T @ x = y
     // 1: L @ z = y
     // 2: L.T @ x = z
-    let l_arr = linalg::cholesky(a)?;
+    let l_arr = linalg::cholesky(a)?.l;
     let l = l_arr.matrix_view_unsafe()?;
     let y = y.vector_view_unsafe()?;
     let n = y.len();
