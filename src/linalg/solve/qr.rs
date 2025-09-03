@@ -4,13 +4,13 @@ use super::utils;
 pub fn qr_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;
     let (q, r) = linalg::qr(a)?;
-    let q = q.matrix_view()?;                // Q: (m, m)
-    let r = r.matrix_view()?;                // R: (m, n)
-    let y = y.vector_view().unwrap();
+    let q = q.matrix_view_unsafe()?;                // Q: (m, m)
+    let r = r.matrix_view_unsafe()?;                // R: (m, n)
+    let y = y.vector_view_unsafe().unwrap();
 
     let n = r.shape().1;                        // number of unknowns
     let rhs_arr = NdArray::<T>::zeros(n)?; // rhs = Q^T * y
-    let mut rhs = rhs_arr.vector_view().unwrap();
+    let mut rhs = rhs_arr.vector_view_unsafe().unwrap();
 
     unsafe {
         // Step 2: compute Q^T * y
@@ -25,7 +25,7 @@ pub fn qr_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
         // Step 3: backward substitution R x = rhs
         let x_arr = NdArray::<T>::zeros(n)?;
         {
-            let mut x = x_arr.vector_view().unwrap();
+            let mut x = x_arr.vector_view_unsafe().unwrap();
             for i in (0..n).rev() {
                 let mut sum = T::zero();
                 for j in i+1..n {

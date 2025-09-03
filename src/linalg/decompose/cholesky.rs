@@ -35,12 +35,12 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// // Now a ≈ L * L^T
 /// ```
 pub fn cholesky<T: FloatDType>(arr: &NdArray<T>) -> Result<NdArray<T>> {
-    let mat = arr.matrix_view()?;
+    let mat = arr.matrix_view_unsafe()?;
     let (n, _) = mat.shape();
     let l_arr = NdArray::<T>::zeros(mat.shape())?;
 
     unsafe {
-        let mut l = l_arr.matrix_view().unwrap();
+        let mut l = l_arr.matrix_view_unsafe().unwrap();
         for i in 0..n {
             // diag
             let mut sum = T::zero();

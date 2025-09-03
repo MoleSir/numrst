@@ -1,4 +1,4 @@
-use crate::{linalg::{self, LinalgError}, view::MatrixView, FloatDType, NdArray, Result};
+use crate::{linalg::{self, LinalgError}, view::MatrixViewUsf, FloatDType, NdArray, Result};
 
 pub struct EigResult<T: FloatDType> {
     pub eig_values: Vec<T>,
@@ -34,7 +34,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
 
         // off-diagonal norm
         let mut off_diag_norm = T::zero();
-        let hv = h.matrix_view()?;
+        let hv = h.matrix_view_unsafe()?;
         for i in 0..n {
             for j in 0..n {
                 if i != j {
@@ -49,7 +49,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
         }
     }
 
-    let hv = h.matrix_view().unwrap();
+    let hv = h.matrix_view_unsafe().unwrap();
     let eig_values = (0..n).map(|i| unsafe { hv.g(i,i) }).collect::<Vec<_>>();
     Ok(EigResult { eig_values, eig_vectors: v })
 }
@@ -62,7 +62,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
 /// - https://oldsite.pup.ac.in/e-content/science/physics/mscphy58.pdf
 /// 
 pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T>> {
-    unsafe fn max_elem<T: FloatDType>(mat: &MatrixView<'_, T>) -> (T, (usize, usize)) {
+    unsafe fn max_elem<T: FloatDType>(mat: &MatrixViewUsf<'_, T>) -> (T, (usize, usize)) {
         unsafe {
             let (n, _) = mat.shape();
             let mut max_value = mat.g(0, 1).abs();
@@ -83,7 +83,7 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
         return Err(LinalgError::ExpectSymmetricMatrix { op: "eig_jacobi" })?;
     }
 
-    let mat_view = mat.matrix_view()?;
+    let mat_view = mat.matrix_view_unsafe()?;
     let (n, m) = mat_view.shape();
     if m != n {
         Err(LinalgError::ExpectMatrixSquare { shape: mat_view.shape(), op: "eig_jacobi" })?;
@@ -95,7 +95,7 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
         let mut r = NdArray::<T>::eye(n)?;
     
         for _ in 0..max_rot {
-            let av = a.matrix_view().unwrap();
+            let av = a.matrix_view_unsafe().unwrap();
             let (max_value, (p, q)) = max_elem(&av);
             assert!(p != q);
             if max_value < tol {
@@ -107,8 +107,8 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
                 let eig_vals_sorted: Vec<T> = idx.iter().map(|&i| eig_vals[i]).collect();
                 let eig_vecs_sorted = r.copy();
                 {
-                    let mut mv = eig_vecs_sorted.matrix_view().unwrap();
-                    let rv = r.matrix_view().unwrap();
+                    let mut mv = eig_vecs_sorted.matrix_view_unsafe().unwrap();
+                    let rv = r.matrix_view_unsafe().unwrap();
     
                     for (new_j, &old_j) in idx.iter().enumerate() {
                         for i in 0..n {
@@ -130,7 +130,7 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
 }
 
 fn jacobi_rotate<T: FloatDType>(arr: &NdArray<T>, p: usize, q: usize) -> Result<(NdArray<T>, NdArray<T>)> {
-    let mat = arr.matrix_view()?;
+    let mat = arr.matrix_view_unsafe()?;
     let (m, _) = mat.shape();
 
     unsafe {
@@ -143,7 +143,7 @@ fn jacobi_rotate<T: FloatDType>(arr: &NdArray<T>, p: usize, q: usize) -> Result<
     
         let r = NdArray::<T>::eye(m)?;
         {
-            let mut r = r.matrix_view()?;
+            let mut r = r.matrix_view_unsafe()?;
             r.s(p, p, c); 
             r.s(q, q, c); 
             r.s(p, q, s); 

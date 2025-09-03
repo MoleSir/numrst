@@ -231,18 +231,6 @@ impl<'a, T: WithDType> StorageMut<'a, T> {
         StorageRef::Slice(self.data())
     }
 
-    pub fn clone_mut(&'a mut self) -> Self {
-        Self::Slice(self.data_mut())
-    }
-
-    pub fn slice(&'a self, index: usize) -> StorageRef<'a, T> {
-        StorageRef::Slice(&self.data()[index..])
-    }
-
-    pub fn slice_mut(&'a mut self, index: usize) -> Self {
-        Self::Slice(&mut self.data_mut()[index..])
-    }
-
     #[inline]
     pub fn get(&self, index: usize) -> Option<T> {
         self.data().get(index).copied()

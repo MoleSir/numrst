@@ -142,10 +142,18 @@ pub enum Error {
     NotScalar,
 
     // === View ===
-    #[error("len mismatch with lhs {lhs} and rhs {rhs}")]
-    LenMismatchVectorDot {
+    #[error("len mismatch with lhs {lhs} and rhs {rhs} in {op}")]
+    LenMismatchVector {
         lhs: usize,
         rhs: usize,
+        op: &'static str,
+    },
+
+    #[error("shape mismatch with lhs {lhs:?} and rhs {rhs:?} in {op}")]
+    ShapeMismatchMatrix {
+        lhs: (usize, usize),
+        rhs: (usize, usize),
+        op: &'static str,
     },
 
     #[error("index {index} of out range in {len} len vector")]

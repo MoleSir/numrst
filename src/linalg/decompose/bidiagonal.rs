@@ -1,7 +1,7 @@
 use crate::{linalg, Context, Error, FloatDType, IndexOp, NdArray, Result};
 
 pub fn bidiagonal<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, NdArray<T>)> {
-    // let mut mat = arr.matrix_view()?;
+    // let mut mat = arr.matrix_view_unsafe()?;
     let (rows, cols) = arr.dims2().context("check matrix")?;
 
     // !!! Very carefell to view
@@ -13,47 +13,47 @@ pub fn bidiagonal<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArra
 
     // (m, n) => m < n
     let (mat, flipped) = if cols > rows {
-        (arr.matrix_view()?, true)
+        (arr.matrix_view_unsafe()?, true)
     } else {
-        (arr.matrix_view()?, false)
+        (arr.matrix_view_unsafe()?, false)
     };
 
     let (m, n) = mat.shape(); // (m > n)
 
     let u_arr = NdArray::<T>::eye(m)?; // (m, m)
-    let u = u_arr.matrix_view().unwrap();
+    let u = u_arr.matrix_view_unsafe().unwrap();
     let v_arr = NdArray::<T>::eye(n)?; // (n, n)
-    let v = v_arr.matrix_view().unwrap();
+    let v = v_arr.matrix_view_unsafe().unwrap();
 
     unsafe {
         for k in 0..n {
             let col = mat.slice(k.., k)?;
             let h_holder = make_householder(col.iter())?; // (m-k, m-k)
-            let h_holder = h_holder.matrix_view().unwrap();
+            let h_holder = h_holder.matrix_view_unsafe().unwrap();
     
             {
                 let mut lower_self_block = mat.slice(k..m, k..n)?; // (m-k, n-k)
                 let transformed_self = h_holder.matmul(&lower_self_block).context("h_holder @ lower_self_block")?; // (m-k, n-k)
-                lower_self_block.copy_from(&transformed_self.matrix_view().unwrap())?;
+                lower_self_block.copy_from(&transformed_self.matrix_view_unsafe().unwrap())?;
     
                 let mut lower_u_block = u.slice(0..m, k..m)?; // (m, m-k)
                 let transformed_u = lower_u_block.matmul(&h_holder).context("lower_u_block @ h_holder")?;  // (m, m-k)
-                lower_u_block.copy_from(&transformed_u.matrix_view().unwrap())?;
+                lower_u_block.copy_from(&transformed_u.matrix_view_unsafe().unwrap())?;
             }
     
             if k < n - 2 {
                 let row = mat.slice(k, k+1..)?;
                 let row_h_holder = make_householder(row.iter())?; // (n-k-1, n-k-1)
-                let row_h_holder = row_h_holder.matrix_view().unwrap();
+                let row_h_holder = row_h_holder.matrix_view_unsafe().unwrap();
     
                 {
                     let mut lower_self_block = mat.slice(k..m, k+1..n)?; // (m-k, n-k-1)
                     let transformed_self = lower_self_block.matmul(&row_h_holder).context("lower_self_block @ row_h_holder")?; // (m-k, n-k-1)
-                    lower_self_block.copy_from(&transformed_self.matrix_view().unwrap())?;
+                    lower_self_block.copy_from(&transformed_self.matrix_view_unsafe().unwrap())?;
     
                     let mut lower_v_block = v.slice(0..n, k+1..n)?; // (n, n-k-1)
                     let transformed_v = lower_v_block.matmul(&row_h_holder).context("lower_v_block @ row_h_holder")?; // (n, n-k-1)
-                    lower_v_block.copy_from(&transformed_v.matrix_view().unwrap())?;
+                    lower_v_block.copy_from(&transformed_v.matrix_view_unsafe().unwrap())?;
                 }
             }
         }
@@ -145,7 +145,7 @@ mod test_bidiagonal {
     }
 
     fn validate_bidiag(a: &NdArray<f64>, b: &NdArray<f64>, u: &NdArray<f64>, v: &NdArray<f64>, upper: bool) {
-        let bv = b.matrix_view().unwrap();
+        let bv = b.matrix_view_unsafe().unwrap();
         let (m, n) = bv.shape();
         for i in 0..m {
             for j in 0..n {

@@ -13,7 +13,7 @@ mod condition;
 use std::sync::Arc;
 pub use indexer::{Range, IndexOp};
 use crate::{Error, Result};
-use super::{view::{MatrixView, VectorView}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, WithDType};
+use super::{view::{AsMatrixView, AsMatrixViewMut, AsVectorView, AsVectorViewMut, MatrixView, MatrixViewMut, MatrixViewUsf, VectorView, VectorViewMut, VectorViewUsf}, DType, Dim, DimCoordinates, DimNCoordinates, Layout, NumDType, Shape, Storage, StorageArc, StorageIndices, StorageMut, StorageRef, WithDType};
 pub use iter::*;
 pub use indexer::*;
 
@@ -63,12 +63,12 @@ impl<T: WithDType> NdArray<T> {
     }
 
     #[inline]
-    pub fn storage_ref(&self, start_offset: usize) -> StorageRef<'_, T> {
+    pub fn storage_ref<'a>(&'a self, start_offset: usize) -> StorageRef<'a, T> {
         self.0.storage.get_ref(start_offset)
     }
 
     #[inline]
-    pub fn storage_mut(&self, start_offset: usize) -> StorageMut<'_, T> {
+    pub fn storage_mut<'a>(&'a self, start_offset: usize) -> StorageMut<'a, T> {
         self.0.storage.get_mut(start_offset)
     }
 
@@ -170,12 +170,28 @@ impl<T: WithDType> NdArray<T> {
 }
 
 impl<T: WithDType> NdArray<T> {
-    pub fn matrix_view(&self) -> Result<MatrixView<'_, T>> {
+    pub fn matrix_view_unsafe(&self) -> Result<MatrixViewUsf<'_, T>> {
+        MatrixViewUsf::from_ndarray(self)
+    }
+
+    pub fn vector_view_unsafe(&self) -> Result<VectorViewUsf<'_, T>> {
+        VectorViewUsf::from_ndarray(self)
+    }
+
+    pub fn matrix_view<'a>(&'a self) -> Result<MatrixView<'a, T>> {
         MatrixView::from_ndarray(self)
     }
 
-    pub fn vector_view(&self) -> Result<VectorView<'_, T>> {
+    pub fn matrix_view_mut<'a>(&'a mut self) -> Result<MatrixViewMut<'a, T>> {
+        MatrixViewMut::from_ndarray_mut(self)
+    }
+
+    pub fn vector_view<'a>(&'a self) -> Result<VectorView<'a, T>> {
         VectorView::from_ndarray(self)
+    }
+
+    pub fn vector_view_mut<'a>(&'a mut self) -> Result<VectorViewMut<'a, T>> {
+        VectorViewMut::from_ndarray_mut(self)
     }
 }
 

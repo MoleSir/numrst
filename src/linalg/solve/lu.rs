@@ -4,10 +4,10 @@ use super::utils;
 pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;
     let (l, u) = linalg::lu(a)?;
-    let y = y.vector_view()?;
+    let y = y.vector_view_unsafe()?;
 
-    let l = l.matrix_view()?;
-    let u = u.matrix_view()?;
+    let l = l.matrix_view_unsafe()?;
+    let u = u.matrix_view_unsafe()?;
 
     unsafe {
         // Ax = y --> LUx = y --> Lz = y & Ux = z
@@ -16,7 +16,7 @@ pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
         // Forward substitution: L z = y
         // L's diag are all T::one()
         let z_arr = NdArray::<T>::zeros(n)?;
-        let mut z = z_arr.vector_view()?;
+        let mut z = z_arr.vector_view_unsafe()?;
         for i in 0..n {
             let mut sum = T::zero();
             for j in 0..i {
@@ -28,7 +28,7 @@ pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
         // Backward substitution: U x = z
         let x_arr = NdArray::<T>::zeros(n)?;
         {
-            let mut x = x_arr.vector_view().unwrap();
+            let mut x = x_arr.vector_view_unsafe().unwrap();
             for i in (0..n).rev() {
                 let mut sum = T::zero();
                 for j in i+1..n {
@@ -45,18 +45,18 @@ pub fn lu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray
 pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArray<T>> {
     utils::check_solve_arg(&a, &y)?;    
     let (p, l, u) = linalg::plu(a)?;
-    let l = l.matrix_view()?;
-    let u = u.matrix_view()?;
+    let l = l.matrix_view_unsafe()?;
+    let u = u.matrix_view_unsafe()?;
 
     let py: NdArray<T> = linalg::mat_mul_vec(&p, y)?;
-    let py = py.vector_view().unwrap();
+    let py = py.vector_view_unsafe().unwrap();
     
     let n = py.len();
 
     unsafe {
         // L·z = P·y
         let z_arr = NdArray::<T>::zeros(n)?;
-        let mut z = z_arr.vector_view().unwrap();
+        let mut z = z_arr.vector_view_unsafe().unwrap();
         for i in 0..n {
             let mut sum = T::zero();
             for j in 0..i {
@@ -68,7 +68,7 @@ pub fn plu_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<NdArra
         // U·x = z
         let x_arr = NdArray::<T>::zeros(n)?;
         {
-            let mut x = x_arr.vector_view().unwrap();
+            let mut x = x_arr.vector_view_unsafe().unwrap();
             for i in (0..n).rev() {
                 let mut sum = T::zero();
                 for j in i+1..n {

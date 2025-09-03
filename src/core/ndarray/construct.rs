@@ -115,7 +115,8 @@ impl<T: NumDType> NdArray<T> {
     /// let a = NdArray::from_vec(vec![1, 2, 3, 4], (2, 2)).unwrap();
     /// println!("{}", a);
     /// ```
-    pub fn from_vec<S: Into<Shape>>(vec: Vec<T>, shape: S) -> Result<Self> {
+    pub fn from_vec<V: Into<Vec<T>>, S: Into<Shape>>(vec: V, shape: S) -> Result<Self> {
+        let vec = vec.into();
         let shape: Shape = shape.into();
         if shape.element_count() != vec.len() {
             Err(Error::ElementSizeMismatch { expected: vec.len(), got: shape.element_count(), op: "from_vec" })?

@@ -10,14 +10,14 @@ pub fn cholesky_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<N
     // 1: L @ z = y
     // 2: L.T @ x = z
     let l_arr = linalg::cholesky(a)?;
-    let l = l_arr.matrix_view()?;
-    let y = y.vector_view()?;
+    let l = l_arr.matrix_view_unsafe()?;
+    let y = y.vector_view_unsafe()?;
     let n = y.len();
 
     unsafe {
         // Step 1: forward solve L z = y
         let z_arr = NdArray::<T>::zeros(n)?;   
-        let mut z = z_arr.vector_view().unwrap();
+        let mut z = z_arr.vector_view_unsafe().unwrap();
         for i in 0..n {
             let mut sum = T::zero();
             for k in 0..i {
@@ -29,7 +29,7 @@ pub fn cholesky_solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>) -> Result<N
         // Step 2: backward solve L^T x = z
         let x_arr = NdArray::<T>::zeros(n)?;
         {
-            let mut x = x_arr.vector_view().unwrap();
+            let mut x = x_arr.vector_view_unsafe().unwrap();
             for i in (0..n).rev() {
                 let mut sum = T::zero();
                 for k in i+1..n {

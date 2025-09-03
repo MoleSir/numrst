@@ -37,26 +37,26 @@ use crate::{FloatDType, NdArray, Result};
 /// // Q is orthogonal, R is upper triangular
 /// ```
 pub fn qr<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
-    let a = arr.matrix_view()?;    
+    let a = arr.matrix_view_unsafe()?;    
     let (m, n) = a.shape();
     
     unsafe {
         let r_arr = a.copy(); // (m, n)
         let q_arr = NdArray::<T>::eye(m)?; // (m, m)
 
-        let mut r = r_arr.matrix_view().unwrap();
-        let mut q = q_arr.matrix_view().unwrap();
+        let mut r = r_arr.matrix_view_unsafe().unwrap();
+        let mut q = q_arr.matrix_view_unsafe().unwrap();
 
         for k in 0..n {
             let x_arr = NdArray::<T>::zeros(m - k)?;
-            let mut x = x_arr.vector_view().unwrap(); 
+            let mut x = x_arr.vector_view_unsafe().unwrap(); 
             for i in 0..(m - k) {
                 x.s(i, r.g(k + i, k));
             }
     
             // v
             let v_arr = x.copy();
-            let mut v = v_arr.vector_view().unwrap(); 
+            let mut v = v_arr.vector_view_unsafe().unwrap(); 
 
             let sign = if x.g(0) >= T::zero() { T::one() } else { -T::one() };
             let norm_x = x.norm();

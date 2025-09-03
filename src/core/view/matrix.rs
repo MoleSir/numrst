@@ -1,364 +1,259 @@
-use crate::{Error, FloatDType, Indexer, NdArray, NumDType, Result, Storage, WithDType};
-use std::marker::PhantomData;
-use super::{VectorView, MatrixView, StorageView};
+use crate::{Error, FloatDType, NdArray, NumDType, Result, StorageMut, StorageRef, WithDType};
+use super::{AsMatrixView, AsMatrixViewFloat, AsMatrixViewMut, AsMatrixViewNum, VectorView};
 
-impl<'a, T: WithDType> MatrixView<'a, T> {
-    pub fn from_ndarray(array: &NdArray<T>) -> Result<Self> {
+//////////////////////////////////////////////////////////////////////////////
+///         Matrix View 
+//////////////////////////////////////////////////////////////////////////////
+
+pub struct MatrixView<'a, T: WithDType> {
+    pub(crate) storage: StorageRef<'a, T>,
+    pub(crate) shape: (usize, usize),
+    pub(crate) strides: (usize, usize),
+}
+
+impl<'a, T: WithDType> AsMatrixView<'a, T> for MatrixView<'a, T> {
+    #[inline]
+    fn shape(&self) -> (usize, usize) {
+        self.shape
+    }
+
+    #[inline]
+    fn strides(&self) -> (usize, usize) {
+        self.strides
+    }
+
+    #[inline]
+    fn storage_get_uncheck(&self, storage_index: usize) -> T {
+        self.storage.get_unchecked(storage_index)
+    }
+
+    #[inline]
+    fn from_ndarray(array: &'a NdArray<T>) -> Result<Self> {
         let _ = array.dims2()?;
 
         Ok(Self {
-            storage: StorageView(array.storage_ptr(array.layout().start_offset())),
+            storage: array.storage_ref(array.layout().start_offset()),
             shape: (array.layout().dims()[0], array.layout().dims()[1]),
             strides: (array.layout().stride()[0], array.layout().stride()[1]),
-            _marker: PhantomData,
         })
     }
+}
 
-    pub fn is_square(&self) -> bool {
-        let (m, n) = self.shape();
-        m == n 
-    }
+impl<'a, T: NumDType> AsMatrixViewNum<'a, T> for MatrixView<'a, T> {}
+impl<'a, T: FloatDType> AsMatrixViewFloat<'a, T> for MatrixView<'a, T> {}
 
-    pub unsafe fn get(&self, row: usize, col: usize) -> Option<T> {
-        if row >= self.row_size() || col >= self.col_size() {
-            None
-        } else {
-            Some(unsafe { self.g(row, col) })
+impl<'a, T: WithDType> MatrixView<'a, T> {
+    pub fn clone(&'a self) -> Self {
+        Self {
+            shape: self.shape,
+            storage: self.storage.clone(),
+            strides: self.strides
         }
     }
 
-    pub unsafe fn g(&self, row: usize, col: usize) -> T {
-        let storage_index = self.storage_index(row, col);
-        unsafe { self.storage.get(storage_index) }
-    }
-
-    pub unsafe fn g_mut(&mut self, row: usize, col: usize) -> &mut T {
-        let storage_index = self.storage_index(row, col);
-        unsafe { self.storage.get_mut(storage_index) }
-    }
-
-    pub unsafe fn set(&mut self, row: usize, col: usize, value: T) -> Option<()> {
-        if row >= self.row_size() || col >= self.col_size() {
-            None
-        } else {
-            Some(unsafe { self.s(row, col, value) })
-        }
-    }
-
-    pub unsafe fn s(&mut self, row: usize, col: usize, value: T) {
-        let storage_index = self.storage_index(row, col);
-        let ptr = unsafe { self.storage.add(storage_index) };
-        unsafe { *ptr = value };
-    }
-
-    pub unsafe fn row(&self, row: usize) -> Result<VectorView<'_, T>> {
-        if row >= self.row_size() {
+    pub fn row(&'a self, row: usize) -> Result<VectorView<'a, T>> {
+        if row > self.row_size() {
             return Err(Error::MatrixIndexOutOfRange { position: "row", len: self.row_size(), index: row });
         } else {
+            let storage = self.storage.slice(row * self.row_stride());
             Ok(VectorView {
-                storage: unsafe { StorageView(self.storage.add(row * self.row_stride())) },
+                storage,
                 len: self.col_size(),
                 stride: self.col_stride(),
-                _marker: PhantomData
             })
         }
     }
 
-    pub unsafe fn col(&self, col: usize) -> Result<VectorView<'_, T>> {
-        if col >= self.col_size() {
+    pub fn col(&'a self, col: usize) -> Result<VectorView<'a, T>> {
+        if col > self.col_size() {
             return Err(Error::MatrixIndexOutOfRange { position: "col", len: self.col_size(), index: col });
         } else {
+            let storage = self.storage.slice(col * self.col_stride());
             Ok(VectorView {
-                storage: unsafe { StorageView(self.storage.add(col * self.col_stride())) },
+                storage,
                 len: self.row_size(),
                 stride: self.row_stride(),
-                _marker: PhantomData
             })
         }
     }
 
-    pub unsafe fn slice<RI, CI>(&self, ri: RI, ci: CI) -> Result<Self>
-    where
-        RI: Into<Indexer>,
-        CI: Into<Indexer>,
-    {
-        let ri: Indexer = ri.into();
-        let ci: Indexer = ci.into();
-
-        fn get_start_step_len(
-            index: Indexer,
-            max_end: usize,
-            pos: &'static str,
-        ) -> Result<(usize, usize, usize)> {
-            match index {
-                Indexer::Select(i) => {
-                    if i >= max_end {
-                        Err(Error::MatrixIndexOutOfRange {
-                            len: max_end,
-                            index: i,
-                            position: pos,
-                        })
-                    } else {
-                        Ok((i, 1, 1))
-                    }
-                }
-                Indexer::Range(range) => {
-                    let start = range.start;
-                    if start >= max_end {
-                        return Err(Error::MatrixIndexOutOfRange {
-                            len: max_end,
-                            index: start,
-                            position: pos,
-                        });
-                    }
-                    let end = range.end.unwrap_or(max_end);
-                    let end = end.min(max_end);
-                    let step = range.step;
-                    assert!(step != 0);
-                    let len = (start..end).step_by(step).count();
-                    Ok((start, step, len))
-                }
-            }
-        }
-
-        let (rbegin, rstep, rsize) = get_start_step_len(ri, self.row_size(), "row")?;
-        let (cbegin, cstep, csize) = get_start_step_len(ci, self.col_size(), "col")?;
-
-        let new_storage = StorageView(
-            unsafe { self.storage.0.add(rbegin * self.row_stride() + cbegin * self.col_stride()) }
-        );
-        // 构造新的 view
-        Ok(Self {
-            storage: new_storage,
-            shape: (rsize, csize),
-            strides: (self.row_stride() * rstep, self.col_stride() * cstep),
-            _marker: PhantomData,
-        })
-    }
-    pub unsafe fn copy(&self) -> NdArray<T> {
-        let data: Vec<_> = (0..self.row_size())
-            .flat_map(|row| {
-                (0..self.col_size()).map(move |col| unsafe {
-                    self.g(row, col)
-                })
-            })
-            .collect();
-        let storage = Storage::new(data);
-        NdArray::from_storage(storage, (self.row_size(), self.col_size()))
-    }
-
-    pub unsafe fn copy_from(&mut self, source: &Self) -> Result<()> {
-        if self.shape() != source.shape() {
-            Err(Error::ShapeMismatchCopyFrom { dst: self.shape().into(), src: source.shape().into() })?
-        }
-
-        for r in 0..self.row_size() {
-            for c in 0..self.col_size() {
-                self[(r, c)] = source[(r, c)];
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn transpose(&self) -> Self {
+    pub fn transpose(&'a self) -> Self {
         Self {
             shape: (self.col_size(), self.row_size()),
             strides: (self.col_stride(), self.row_stride()),
-            storage: self.storage.clone(),
-            _marker: PhantomData
+            storage: self.storage.clone()
         }
     }
+}
 
-    pub unsafe fn swap_rows(&mut self, r1: usize, r2: usize) -> Result<()> {
-        if r1 == r2 {
-            return Ok(());
-        }
+//////////////////////////////////////////////////////////////////////////////
+///         Matrix View Mut
+//////////////////////////////////////////////////////////////////////////////
 
-        let mut row1 = unsafe { self.row(r1)? };
-        let mut row2 = unsafe { self.row(r2)? };
-        row1.swap(&mut row2)
-    }
+pub struct MatrixViewMut<'a, T: WithDType> {
+    pub(crate) storage: StorageMut<'a, T>,
+    pub(crate) shape: (usize, usize),
+    pub(crate) strides: (usize, usize),
+}
 
-    pub unsafe fn swap_rows_partial(&mut self, r1: usize, r2: usize, size: usize) -> Result<()> {
-        if r1 == r2 {
-            return Ok(());
-        }
-
-        let mut row1 = unsafe { self.row(r1)?.take(size)? };
-        let mut row2 = unsafe { self.row(r2)?.take(size)? };
-        row1.swap(&mut row2)
-    }
-
-    pub fn swap_cols(&mut self, c1: usize, c2: usize) -> Result<()> {
-        if c1 == c2 {
-            return Ok(());
-        }
-
-        let mut col1 = unsafe { self.col(c1)? };
-        let mut col2 = unsafe { self.col(c2)? };
-        col1.swap(&mut col2)
-    }
-
-    pub unsafe fn eqal(&self, other: &Self) -> bool {
-        if self.shape() != other.shape() {
-            false 
-        } else {
-            unsafe {
-                self.iter().zip(other.iter()).all(|(a, b)| a == b)
-            }
-        }
-    }
-
-    pub unsafe fn iter(&self) -> MatrixViewIter<'_, T> {
-        MatrixViewIter { 
-            view: self.clone(), 
-            row: 0,
-            col: 0,
-        }
-    }
-
-    pub unsafe fn diag(&self) -> MatrixDiagIter<'_, T> {
-        MatrixDiagIter {
-            view: self.clone(),
-            len: self.row_size().min(self.col_size()),
-            index: 0
-        }
+impl<'a, T: WithDType> AsMatrixView<'a, T> for MatrixViewMut<'a, T> {
+    #[inline]
+    fn shape(&self) -> (usize, usize) {
+        self.shape
     }
 
     #[inline]
-    pub fn element_size(&self) -> usize {
-        self.row_size() * self.col_size()
+    fn strides(&self) -> (usize, usize) {
+        self.strides
     }
 
     #[inline]
-    pub fn row_size(&self) -> usize {
-        self.shape.0
+    fn storage_get_uncheck(&self, storage_index: usize) -> T {
+        self.storage.get_unchecked(storage_index)
     }
 
     #[inline]
-    pub fn col_size(&self) -> usize {
-        self.shape.1
-    }
+    fn from_ndarray(array: &'a NdArray<T>) -> Result<Self> {
+        let _ = array.dims2()?;
 
-    #[inline]
-    pub fn row_stride(&self) -> usize {
-        self.strides.0
-    }
-
-    #[inline]
-    pub fn col_stride(&self) -> usize {
-        self.strides.1
-    }
-
-    #[inline]
-    pub fn shape(&self) -> (usize, usize) {
-        (self.row_size(), self.col_size())
-    }
-
-    #[inline]
-    pub fn storage_index(&self, row: usize, col: usize) -> usize {
-        self.strides.0 * row + self.strides.1 * col
+        Ok(Self {
+            storage: array.storage_mut(array.layout().start_offset()),
+            shape: (array.layout().dims()[0], array.layout().dims()[1]),
+            strides: (array.layout().stride()[0], array.layout().stride()[1]),
+        })
     }
 }
 
-impl<'a, T: FloatDType> MatrixView<'a, T> {
-    pub unsafe fn norm(&self) -> T {
-        let v =  unsafe { self.iter().map(|v| v.powi(2)).sum::<T>() };
-        v.sqrt()
+impl<'a, T: FloatDType> AsMatrixViewFloat<'a, T> for MatrixViewMut<'a, T> {}
+
+impl<'a, T: WithDType> AsMatrixViewMut<'a, T> for MatrixViewMut<'a, T> {
+    fn storage_set_uncheck(&mut self, storage_index: usize, value: T) {
+        self.storage.set_unchecked(storage_index, value);
+    }
+
+    fn from_ndarray_mut(array: &'a mut NdArray<T>) -> Result<Self> {
+        Self::from_ndarray(array)
     }
 }
 
-impl<'a, T: NumDType> MatrixView<'a, T> {
-    pub unsafe fn matmul(&self, rhs: &Self) -> Result<NdArray<T>> {
-        let m = self.row_size();
-        let k = self.col_size();
-        let n = rhs.col_size();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{view::{AsMatrixView, AsMatrixViewFloat, AsMatrixViewMut, AsMatrixViewNum, AsVectorView}, IndexOp, NdArray};
 
-        if k != rhs.row_size() {
-            return Err(Error::ShapeMismatchBinaryOp { lhs: self.shape().into(), rhs: rhs.shape().into(), op: "matmul" })
+    #[test]
+    fn test_matrix_view_basic_access() {
+        let arr = NdArray::from_vec([1, 2, 3, 4], (2, 2)).unwrap();
+        let view = MatrixView::from_ndarray(&arr).unwrap();
+
+        assert_eq!(view.shape(), (2, 2));
+        assert_eq!(view.g(0, 0), 1);
+        assert_eq!(view.g(0, 1), 2);
+        assert_eq!(view.g(1, 0), 3);
+        assert_eq!(view.g(1, 1), 4);
+
+        assert_eq!(view.get(2, 0), None); // 越界
+        assert_eq!(view.diag(), [1, 4]);
+    }
+
+    #[test]
+    fn test_matrix_view_row_col() {
+        let arr = NdArray::from_vec([1, 2, 3, 4, 5, 6], (2, 3)).unwrap();
+        let view = MatrixView::from_ndarray(&arr).unwrap();
+
+        let row0 = view.row(0).unwrap();
+        assert_eq!(row0.to_vec(), [1, 2, 3]);
+
+        let col1 = view.col(1).unwrap();
+        assert_eq!(col1.to_vec(), [2, 5]);
+    }
+
+    #[test]
+    fn test_matrix_view_transpose() {
+        let arr = NdArray::from_vec([1, 2, 3, 4, 5, 6], (2, 3)).unwrap();
+        let view = MatrixView::from_ndarray(&arr).unwrap();
+        let t = view.transpose();
+
+        assert_eq!(t.shape(), (3, 2));
+        assert_eq!(t.g(0, 0), 1);
+        assert_eq!(t.g(1, 0), 2);
+        assert_eq!(t.g(2, 1), 6);
+    }
+
+    #[test]
+    fn test_matrix_eqal_and_copy() {
+        let arr1 = NdArray::from_vec([1, 2, 3, 4], (2, 2)).unwrap();
+        let arr2 = NdArray::from_vec([1, 2, 3, 4], (2, 2)).unwrap();
+        let arr3 = NdArray::from_vec([5, 6, 7, 8], (2, 2)).unwrap();
+
+        let v1 = MatrixView::from_ndarray(&arr1).unwrap();
+        let v2 = MatrixView::from_ndarray(&arr2).unwrap();
+        let v3 = MatrixView::from_ndarray(&arr3).unwrap();
+
+        assert!(v1.eqal(&v2));
+        assert!(!v1.eqal(&v3));
+
+        let copy = v1.copy();
+        assert_eq!(copy.to_vec(), [1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_matrix_matmul() {
+        let a = NdArray::from_vec([1, 2, 3, 4], (2, 2)).unwrap();
+        let b = NdArray::from_vec([5, 6, 7, 8], (2, 2)).unwrap();
+
+        let va = MatrixView::from_ndarray(&a).unwrap();
+        let vb = MatrixView::from_ndarray(&b).unwrap();
+
+        let c = va.matmul(&vb).unwrap();
+        assert_eq!(c.to_vec(), [19, 22, 43, 50]); // 正确结果
+    }
+
+    #[test]
+    fn test_matrix_norm() {
+        let arr = NdArray::from_vec([3.0f32, 4.0], (1, 2)).unwrap();
+        let view = MatrixView::from_ndarray(&arr).unwrap();
+
+        let norm = view.norm();
+        assert!((norm - 5.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_matrix_view_mut_set_and_swap_rows() {
+        let mut arr = NdArray::from_vec([1, 2, 3, 4], (2, 2)).unwrap();
+        let mut view = MatrixViewMut::from_ndarray_mut(&mut arr).unwrap();
+
+        view.s(0, 0, 9);
+        assert_eq!(view.to_vec(), [9, 2, 3, 4]);
+
+        view.swap_rows(0, 1).unwrap();
+        assert_eq!(view.to_vec(), [3, 4, 9, 2]);
+
+        drop(view);
+        assert_eq!(arr.to_vec(), [3, 4, 9, 2]);
+    }
+
+    #[test]
+    fn test_matrix_view_mut_swap_cols() {
+        let mut arr = NdArray::from_vec([1, 2, 3, 4, 5, 6], (2, 3)).unwrap();
+        let mut view = MatrixViewMut::from_ndarray_mut(&mut arr).unwrap();
+
+        view.swap_cols(0, 2).unwrap();
+        assert_eq!(view.to_vec(), [3, 2, 1, 6, 5, 4]);
+    }
+
+    #[test]
+    fn test_sub_view() {
+        let total = NdArray::<f32>::zeros((5, 5)).unwrap();
+
+        {
+            let mut sub = total.index((1..3, 2..4)).unwrap();
+            let source = sub.randn_like(0.0, 1.0).unwrap();
+            let mut sub_view = sub.matrix_view_mut().unwrap();
+    
+            sub_view.copy_from(&source).unwrap();
         }
-
-        let mut data = vec![T::zero(); m * n];
-        // let mut result_storage = Storage::new(data);
-
-        let mut result_view = MatrixView {
-            storage: StorageView(data.as_mut_ptr()), 
-            shape: (m, n),
-            strides: (n, 1), // row-major
-            _marker: PhantomData,
-        };
-
-        for i in 0..m {
-            for j in 0..n {
-                let mut sum = T::zero();
-                for kk in 0..k {
-                    let a = unsafe { self.g(i, kk) }; 
-                    let b = unsafe { rhs.g(kk, j) };
-                    sum = sum + a * b;
-                }
-                unsafe { result_view.s(i, j, sum); }
-            }
-        }
-
-        let storage = Storage::new(data);
-        Ok(NdArray::from_storage(storage, (m, n)))
-    }
-}
-
-pub struct MatrixViewIter<'a, T: WithDType> {
-    view: MatrixView<'a, T>,
-    row: usize,
-    col: usize,
-}
-
-impl<'a, T: WithDType> Iterator for MatrixViewIter<'a, T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.col == self.view.col_size() {
-            self.col = 0;
-            self.row += 1;
-            if self.row == self.view.row_size() {
-                return None;
-            } 
-        }
-
-        let value = unsafe { self.view.g(self.row, self.col) };
-        self.col += 1;
-        Some(value)
-    }
-}
-
-impl<'a, T: WithDType> std::ops::Index<(usize, usize)> for MatrixView<'a, T> {
-    type Output = T;
-    fn index(&self, (row, col): (usize, usize)) -> &T {
-        let storage_index = self.storage_index(row, col);
-        unsafe { self.storage.get_ref(storage_index) }
-    }
-}
-
-impl<'a, T: WithDType> std::ops::IndexMut<(usize, usize)> for MatrixView<'a, T> {
-    fn index_mut(&mut self, (row, col): (usize, usize)) -> &mut T {
-        let storage_index = self.storage_index(row, col);
-        unsafe { self.storage.get_mut(storage_index) }
-    }
-}
-
-pub struct MatrixDiagIter<'a, T: WithDType> {
-    view: MatrixView<'a, T>,
-    len: usize,
-    index: usize,
-}
-
-impl<'a, T: WithDType> Iterator for MatrixDiagIter<'a, T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index == self.len {
-            None
-        } else {
-            let v = unsafe { self.view.g(self.index, self.index) };
-            self.index += 1;
-            Some(v)
-        }
+        
+        println!("{}", total);
     }
 }

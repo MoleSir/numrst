@@ -1,204 +1,216 @@
-use crate::{linalg::LinalgError, Error, FloatDType, NdArray, NumDType, Range, Result, Storage, WithDType};
-use std::marker::PhantomData;
-use super::{StorageView, VectorView};
+use crate::linalg::LinalgError;
+use crate::{FloatDType, NdArray, NumDType, Result, WithDType};
+use crate::{StorageMut, StorageRef};
+use super::{AsVectorView, AsVectorViewFloat, AsVectorViewMut, AsVectorViewMutNum, AsVectorViewNum};
 
-impl<'a, T: WithDType> VectorView<'a, T> {
-    pub fn from_ndarray(array: &NdArray<T>) -> Result<Self> {
+////////////////////////////////////////////////////////////////////////
+///              VectorView
+////////////////////////////////////////////////////////////////////////
+
+pub struct VectorView<'a, T: WithDType> {
+    pub(crate) storage: StorageRef<'a, T>,
+    pub(crate) len: usize,
+    pub(crate) stride: usize,
+}
+
+impl<'a, T: WithDType> AsVectorView<'a, T> for VectorView<'a, T> {
+    fn from_ndarray(array: &'a NdArray<T>) -> Result<Self> {
         let _ = array.dims1()?;
-
-        Ok(Self {
-            storage: StorageView(array.storage_ptr(array.layout().start_offset())),
-            len: array.layout().dims()[0],
-            stride: array.layout().stride()[0],
-            _marker: PhantomData,
-        })
+        let len = array.layout().dims()[0];
+        let stride = array.layout().stride()[0];
+        let start_offset = array.layout().start_offset();
+        let storage = array.storage_ref(start_offset);
+        Ok(Self { len, stride, storage })
     }
 
-    pub unsafe fn get(&self, index: usize) -> Option<T> {
-        if index >= self.len {
-            None
-        } else {
-            Some(unsafe { self.g(index) })
-        }
-    }
-
-    pub unsafe fn g(&self, index: usize) -> T {
-        let storage_index = self.storage_index(index);
-        unsafe { self.storage.get(storage_index) }
-    }
-
-    pub unsafe fn set(&mut self, index: usize, value: T) -> Option<()> {
-        if index >= self.len {
-            None
-        } else {
-            unsafe { self.s(index, value); }
-            Some(())
-        }
-    }
-
-    pub unsafe fn s(&mut self, index: usize, value: T) {
-        let storage_index = self.storage_index(index);
-        let ptr = unsafe { self.storage.add(storage_index) };
-        unsafe { *ptr = value };
-    }
-
-    pub unsafe fn copy(&self) -> NdArray<T> {
-        let data: Vec<_> = (0..self.len)
-            .map(|index| unsafe { self.g(index) })
-            .collect();
-        let storage = Storage::new(data);
-        NdArray::from_storage(storage, (self.len,))
-    }
-
-    pub fn take(&self, size: usize) -> Result<Self> {
-        if size > self.len() {
-            Err(Error::VectorIndexOutOfRange { len: self.len(), index: size })?;
-        }
-        Ok(Self {
-            storage: self.storage.clone(),
-            len: size,
-            stride: self.stride,
-            _marker: PhantomData,
-        })
-    }
-
-    pub unsafe fn drop(&self, size: usize) -> Result<Self> {
-        if size > self.len() {
-            Err(Error::VectorIndexOutOfRange { len: self.len(), index: size })?;
-        }
-        Ok(Self {
-            storage: StorageView( unsafe { self.storage.add(self.storage_index(size)) } ),
-            len: self.len - size,
-            stride: self.stride,
-            _marker: PhantomData,
-        })
-    }
-
-    pub unsafe fn slice<R: Into<Range>>(&self, range: R) -> Result<Self> {
-        let range = range.into();
-        let end = range.end.unwrap_or(self.len);
-        let end = end.min(self.len);
-        let start = range.start;
-        let step = range.step;
-
-        let stride = self.stride * step;
-        let storage = StorageView( unsafe { self.storage.add(self.storage_index(start)) } );
-        let len = (start..end).step_by(2).count();
-        
-        Ok(Self {
-            storage,
-            len,
-            stride,
-            _marker: PhantomData,
-        })
-    }
-
-    pub fn swap(&mut self, other: &mut Self) -> Result<()> {
-        if self.len() != other.len() {
-            return Err(LinalgError::VectorLenMismatch { len1: self.len, len2: other.len, op: "swap" })?;
-        }
-
-        let stride = self.stride;
-        let storage_index = |index: usize| {
-            stride * index
-        };
-
-        let len = self.len();
-        (0..len).into_iter()
-            .map(|index| (storage_index(index), storage_index(index)))
-            .for_each(|(self_index, other_index)| {
-                unsafe {
-                    let self_value = self.storage.get(self_index);
-                    let other_value = other.storage.get(other_index);
-                    self.storage.set(self_index, other_value);
-                    other.storage.set(other_index, self_value);
-                }
-            });
-
-        Ok(())
-    }
-
-    pub unsafe fn eqal(&self, other: &Self) -> bool {
-        if self.len() != other.len() {
-            false 
-        } else {
-            unsafe {
-                self.iter().zip(other.iter()).all(|(a, b)| a == b)
-            }
-        }
-    }
-
-    pub unsafe fn iter(&'a self) -> VectorIterUsf<'a, T> {
-        VectorIterUsf { 
-            view: self.clone(), 
-            index: 0,
-        }
-    }
-
-    pub fn len(&self) -> usize {
+    #[inline]
+    fn len(&self) -> usize {
         self.len
     }
 
     #[inline]
-    pub fn storage_index(&self, index: usize) -> usize {
-        self.stride * index
+    fn stride(&self) -> usize {
+        self.stride
+    }
+
+    #[inline]
+    fn storage_get_uncheck(&self, storage_index: usize) -> T {
+        self.storage.get_unchecked(storage_index)
     }
 }
 
-impl<'a, T: FloatDType> VectorView<'a, T> {
-    pub unsafe fn norm(&self) -> T {
-        let v = unsafe { self.iter().map(|v| v.powi(2)).sum::<T>() };
-        v.sqrt()
-    }
-}
+impl<'a, T: NumDType> AsVectorViewNum<'a, T> for VectorView<'a, T> {}
+impl<'a, T: FloatDType> AsVectorViewFloat<'a, T> for VectorView<'a, T> {}
 
-impl<'a, T: NumDType> VectorView<'a, T> {
-    pub unsafe fn dot(&self, rhs: &Self) -> Result<T> {
-        if self.len() != rhs.len() {
-            Err(Error::LenMismatchVectorDot { lhs: self.len(), rhs: rhs.len() })?;
-        }
-        unsafe { Ok(self.iter().zip(rhs.iter())
-            .map(|(a, b)| a * b)
-            .sum::<T>()) }
-    }
-
-    pub unsafe fn mul_assign(&'a mut self, mul: T) {
-        for i in 0..self.len {
-            let v = unsafe { self.g(i) };
-            unsafe { self.s(i, v * mul); }
+impl<'a, T: WithDType> VectorView<'a, T> {
+    pub fn clone(&'a self) -> Self {
+        Self {
+            len: self.len,
+            storage: self.storage.clone(),
+            stride: self.stride
         }
     }
+
+    pub fn drop(&'a self, size: usize) -> Result<VectorView<'a, T>> {
+        if size > self.len {
+            Err(LinalgError::VectorIndexOutOfRange { index: size, len: self.len, op: "drop" })?;
+        }
+        let drop_size = self.stride * size;
+        let new_len = self.len - size;
+        Ok(Self {
+            storage: self.storage.slice(drop_size),
+            len: new_len,
+            stride: self.stride
+        })
+    }  
 }
 
-pub struct VectorIterUsf<'a, T: WithDType> {
-    view: VectorView<'a, T>,
-    index: usize,
+////////////////////////////////////////////////////////////////////////
+///              VectorViewMut
+////////////////////////////////////////////////////////////////////////
+
+pub struct VectorViewMut<'a, T: WithDType> {
+    pub(crate) storage: StorageMut<'a, T>,
+    pub(crate) len: usize,
+    pub(crate) stride: usize,
 }
 
-impl<'a, T: WithDType> Iterator for VectorIterUsf<'a, T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.view.len {
-            None
-        } else {
-            let value = unsafe { self.view.g(self.index) };
-            self.index += 1;
-            Some(value)
+impl<'a, T: WithDType> AsVectorView<'a, T> for VectorViewMut<'a, T> {
+    fn from_ndarray(array: &'a NdArray<T>) -> Result<Self> {
+        let _ = array.dims1()?;
+        let len = array.layout().dims()[0];
+        let stride = array.layout().stride()[0];
+        let start_offset = array.layout().start_offset();
+        let storage = array.storage_mut(start_offset);
+        Ok(Self { len, stride, storage })
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    fn stride(&self) -> usize {
+        self.stride
+    }
+
+    #[inline]
+    fn storage_get_uncheck(&self, storage_index: usize) -> T {
+        self.storage.get_unchecked(storage_index)
+    }
+}
+
+impl<'a, T: NumDType> AsVectorViewNum<'a, T> for VectorViewMut<'a, T> {}
+impl<'a, T: FloatDType> AsVectorViewFloat<'a, T> for VectorViewMut<'a, T> {}
+
+impl<'a, T: WithDType> AsVectorViewMut<'a, T> for VectorViewMut<'a, T> {
+    fn storage_set_uncheck(&mut self, storage_index: usize, value: T) {
+        self.storage.set_unchecked(storage_index, value);
+    }
+
+    fn from_ndarray_mut(array: &'a mut NdArray<T>) -> Result<Self> {
+        let _ = array.dims1()?;
+        let len = array.layout().dims()[0];
+        let stride = array.layout().stride()[0];
+        let start_offset = array.layout().start_offset();
+        let storage = array.storage_mut(start_offset);
+        Ok(Self { len, stride, storage })
+    }
+}
+
+impl<'a, T: NumDType> AsVectorViewMutNum<'a, T> for VectorViewMut<'a, T> {}
+
+impl<'a, T: WithDType> VectorViewMut<'a, T> {
+    pub fn clone(&self) -> VectorView<'_, T> {
+        VectorView {
+            len: self.len,
+            storage: self.storage.clone(),
+            stride: self.stride
         }
     }
 }
 
-impl<'a, T: WithDType> std::ops::Index<usize> for VectorView<'a, T> {
-    type Output = T;
-    fn index(&self, index: usize) -> &T {
-        let storage_index = self.storage_index(index);
-        unsafe { self.storage.get_ref(storage_index) }
-    }
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::NdArray;
 
-impl<'a, T: WithDType> std::ops::IndexMut<usize> for VectorView<'a, T> {
-    fn index_mut(&mut self, index: usize) -> &mut T {
-        let storage_index = self.storage_index(index);
-        unsafe { self.storage.get_mut(storage_index) }
+    #[test]
+    fn test_get_and_iter() {
+        let arr = NdArray::arange(0i32, 5).unwrap(); // [0,1,2,3,4]
+        let view = VectorView::from_ndarray(&arr).unwrap();
+
+        // get / g
+        assert_eq!(view.get(0), Some(0));
+        assert_eq!(view.g(4), 4);
+        assert_eq!(view.get(5), None);
+
+        // iter
+        let collected: Vec<_> = view.iter().collect();
+        assert_eq!(collected, [0, 1, 2, 3, 4]);
     }
+
+    #[test]
+    fn test_dot_and_norm() {
+        let arr1 = NdArray::new(&[1.0f32, 2.0, 3.0]).unwrap();
+        let arr2 = NdArray::new(&[4.0f32, -5.0, 6.0]).unwrap();
+
+        let v1 = VectorView::from_ndarray(&arr1).unwrap();
+        let v2 = VectorView::from_ndarray(&arr2).unwrap();
+
+        let dot = v1.dot(&v2).unwrap();
+        assert!((dot - (1.0*4.0 + 2.0*-5.0 + 3.0*6.0)).abs() < 1e-6);
+
+        let norm = v1.norm();
+        assert!((norm - (1.0f32*1.0 + 2.0*2.0 + 3.0*3.0).sqrt()).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_drop_and_stride() {
+        let arr = NdArray::arange(0i32, 6).unwrap(); // [0,1,2,3,4,5]
+        let view = VectorView::from_ndarray(&arr).unwrap();
+        let dropped = view.drop(2).unwrap(); // 从 index=2 开始
+
+        assert_eq!(dropped.len(), 4);
+        let collected: Vec<_> = dropped.iter().collect();
+        assert_eq!(collected, [2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn test_set_and_assign_ops() {
+        let mut arr = NdArray::new(&[1i32, 2, 3]).unwrap();
+        let mut v = VectorViewMut::from_ndarray_mut(&mut arr).unwrap();
+
+        // set
+        v.set(1, 99);
+        assert_eq!(v.to_vec(), [1, 99, 3]);
+
+        // add_assign
+        v.add_assign(1);
+        assert_eq!(v.to_vec(), [2, 100, 4]);
+
+        // mul_assign
+        v.mul_assign(2);
+        assert_eq!(v.to_vec(), [4, 200, 8]);
+
+        drop(v);
+        assert_eq!(arr.to_vec(), [4, 200, 8]);
+    }
+
+    #[test]
+    fn test_swap_between_views() {
+        let mut arr1 = NdArray::new(&[1i32, 2, 3]).unwrap();
+        let mut arr2 = NdArray::new(&[4i32, 5, 6]).unwrap();
+
+        {
+            let mut v1 = VectorViewMut::from_ndarray_mut(&mut arr1).unwrap();
+            let mut v2 = VectorViewMut::from_ndarray_mut(&mut arr2).unwrap();
+            v1.swap(&mut v2).unwrap();
+        }
+
+        assert_eq!(arr1.to_vec(), [4, 5, 6]);
+        assert_eq!(arr2.to_vec(), [1, 2, 3]);
+    }
+
 }

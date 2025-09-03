@@ -35,7 +35,7 @@ use crate::{linalg::LinalgError, FloatDType, NdArray, Result};
 /// // Now a ≈ L * U
 /// ```
 pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
-    let mat = arr.matrix_view()?;
+    let mat = arr.matrix_view_unsafe()?;
     let (m, n) = mat.shape();
 
     let l_arr = NdArray::<T>::eye(m)?;
@@ -43,8 +43,8 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
     let k = m.min(n);
 
     unsafe  {
-        let mut l = l_arr.matrix_view()?;
-        let mut u = u_arr.matrix_view()?;
+        let mut l = l_arr.matrix_view_unsafe()?;
+        let mut u = u_arr.matrix_view_unsafe()?;
     
         for i in 0..k {
             // U
@@ -119,7 +119,7 @@ pub fn lu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>)> {
 /// // Now P * A ≈ L * U
 /// ```
 pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, NdArray<T>)> {
-    let mat = arr.matrix_view()?;
+    let mat = arr.matrix_view_unsafe()?;
     let (m, n) = mat.shape();
 
     unsafe {
@@ -129,9 +129,9 @@ pub fn plu<T: FloatDType>(arr: &NdArray<T>) -> Result<(NdArray<T>, NdArray<T>, N
     
         {
     
-            let mut u = u_arr.matrix_view().unwrap();
-            let mut l = l_arr.matrix_view().unwrap();
-            let mut p = p_arr.matrix_view().unwrap();
+            let mut u = u_arr.matrix_view_unsafe().unwrap();
+            let mut l = l_arr.matrix_view_unsafe().unwrap();
+            let mut p = p_arr.matrix_view_unsafe().unwrap();
         
             let k = m.min(n);
         

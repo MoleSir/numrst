@@ -1,13 +1,17 @@
-use numrst::{IndexOp, NdArray};
+use numrst::{view::AsMatrixViewMut, IndexOp, NdArray};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let a = NdArray::<f32>::rand(0.0, 1.0, (5, 9, 7, 11))?;
-    println!("{}", a.shape());
-    
-    let mat_a = a.index((1, 1, 1..5, 2..9))?;
-    println!("{}", mat_a.shape());
-    println!("{}", mat_a);
+    let total = NdArray::<f32>::zeros((5, 5)).unwrap();
 
+    {
+        let mut sub = total.index((1..3, 2..4)).unwrap();
+        let source = sub.randn_like(0.0, 1.0).unwrap();
+        let mut sub_view = sub.matrix_view_mut().unwrap();
+
+        sub_view.copy_from(&source).unwrap();
+    }
+    
+    println!("{}", total);
 
     Ok(())
 }
