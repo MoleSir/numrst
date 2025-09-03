@@ -40,9 +40,9 @@ impl<T: FloatDType> EigResult<T> {
     }
 }
 
-pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result<EigResult<T>> {
+pub fn qr_eig<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result<EigResult<T>> {
     if !linalg::is_symmetric(a)? {
-        return Err(LinalgError::ExpectSymmetricMatrix { op: "eig_jacobi" })?;
+        return Err(LinalgError::ExpectSymmetricMatrix { op: "jacobi_eig" })?;
     }
 
     let n = a.dims2()?.0;
@@ -85,7 +85,7 @@ pub fn eig_qr<T: FloatDType>(a: &NdArray<T>, max_iters: usize, tol: T) -> Result
 /// - https://www.quantstart.com/articles/Jacobi-Method-in-Python-and-NumPy/
 /// - https://oldsite.pup.ac.in/e-content/science/physics/mscphy58.pdf
 /// 
-pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T>> {
+pub fn jacobi_eig<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T>> {
     unsafe fn max_elem<T: FloatDType>(mat: &MatrixViewUsf<'_, T>) -> (T, (usize, usize)) {
         unsafe {
             let (n, _) = mat.shape();
@@ -104,13 +104,13 @@ pub fn eig_jacobi<T: FloatDType>(mat: &NdArray<T>, tol: T) -> Result<EigResult<T
     }
 
     if !linalg::is_symmetric(mat)? {
-        return Err(LinalgError::ExpectSymmetricMatrix { op: "eig_jacobi" })?;
+        return Err(LinalgError::ExpectSymmetricMatrix { op: "jacobi_eig" })?;
     }
 
     let mat_view = mat.matrix_view_unsafe()?;
     let (n, m) = mat_view.shape();
     if m != n {
-        Err(LinalgError::ExpectMatrixSquare { shape: mat_view.shape(), op: "eig_jacobi" })?;
+        Err(LinalgError::ExpectMatrixSquare { shape: mat_view.shape(), op: "jacobi_eig" })?;
     }
 
     unsafe {
@@ -199,9 +199,9 @@ mod tests {
     use crate::NdArray;
 
     #[test]
-    fn test_eig_jacobi_identity() {
+    fn test_jacobi_eig_identity() {
         let a = NdArray::<f64>::eye(3).unwrap();
-        let result = eig_jacobi(&a, 1e-12).unwrap();
+        let result = jacobi_eig(&a, 1e-12).unwrap();
 
         for v in result.eig_values.iter() {
             assert!((v - 1.0f64).abs() < 1e-10);
@@ -212,26 +212,26 @@ mod tests {
     }
 
     #[test]
-    fn test_eig_jacobi_diagonal_matrix() {
+    fn test_jacobi_eig_diagonal_matrix() {
         let a = NdArray::new(&[
             [3.0, 0.0, 0.0],
             [0.0, 5.0, 0.0],
             [0.0, 0.0, -2.0],
         ]).unwrap();
 
-        let result = eig_jacobi(&a, 1e-12).unwrap();
+        let result = jacobi_eig(&a, 1e-12).unwrap();
 
         let rec = result.reconstruct().unwrap();
         assert!(rec.allclose(&a, 1e-8, 1e-8));
     }
 
     #[test]
-    fn test_eig_jacobi_symmetric_offdiag() {
+    fn test_jacobi_eig_symmetric_offdiag() {
         let a = NdArray::new(&[
             [2.0, 1.0],
             [1.0, 2.0],
         ]).unwrap();
-        let result = eig_jacobi(&a, 1e-12).unwrap();
+        let result = jacobi_eig(&a, 1e-12).unwrap();
 
         let mut sorted = result.eig_values.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -243,9 +243,9 @@ mod tests {
     }
 
     #[test]
-    fn test_eig_jacobi_zero_matrix() {
+    fn test_jacobi_eig_zero_matrix() {
         let a = NdArray::zeros((3, 3)).unwrap();
-        let result = eig_jacobi(&a, 1e-12).unwrap();
+        let result = jacobi_eig(&a, 1e-12).unwrap();
 
         for v in result.eig_values.iter() {
             assert!(f64::abs(*v) < 1e-12);
@@ -256,11 +256,11 @@ mod tests {
     }
 
     #[test]
-    fn test_eig_jacobi_random_symmetric() {
+    fn test_jacobi_eig_random_symmetric() {
         let a = NdArray::<f64>::randn(0.0, 1.0, (4, 4)).unwrap();
         let a_sym = (&a + &a.transpose_last().unwrap()).unwrap().mul(0.5).unwrap();
 
-        let result = eig_jacobi(&a_sym, 1e-10).unwrap();
+        let result = jacobi_eig(&a_sym, 1e-10).unwrap();
         let rec = result.reconstruct().unwrap();
 
         assert!(rec.allclose(&a_sym, 1e-6, 1e-6));
@@ -268,37 +268,37 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_eig_jacobi_non_square() {
+    fn test_jacobi_eig_non_square() {
         let a = NdArray::new(&[
             [1.0, 2.0, 3.0],
             [4.0, 5.0, 6.0],
         ]).unwrap();
     
-        let _ = eig_jacobi(&a, 1e-12).unwrap();
+        let _ = jacobi_eig(&a, 1e-12).unwrap();
     }
 
     #[test]
     #[should_panic]
-    fn test_eig_jacobi_non_symmetric() {
+    fn test_jacobi_eig_non_symmetric() {
         let a = NdArray::new(&[
             [1.0, 2.0],
             [0.0, 3.0],
         ]).unwrap();
     
-        let result = eig_jacobi(&a, 1e-12).unwrap();
+        let result = jacobi_eig(&a, 1e-12).unwrap();
         println!("{}", result.reconstruct().unwrap());
     }
 
     #[test]
-    fn test_eig_jacobi_zeros() {
+    fn test_jacobi_eig_zeros() {
         let a = NdArray::<f64>::zeros((4, 4)).unwrap();
-        let _ = eig_jacobi(&a, 1e-12).unwrap();
+        let _ = jacobi_eig(&a, 1e-12).unwrap();
     }
     
     #[test]
-    fn test_eig_qr_identity() {
+    fn test_qr_eig_identity() {
         let a = NdArray::<f64>::eye(3).unwrap();
-        let result = eig_qr(&a, 100, 1e-12).unwrap();
+        let result = qr_eig(&a, 100, 1e-12).unwrap();
 
         for v in result.eig_values.iter() {
             assert!((v - 1.0f64).abs() < 1e-10);
@@ -309,26 +309,26 @@ mod tests {
     }
 
     #[test]
-    fn test_eig_qr_diagonal_matrix() {
+    fn test_qr_eig_diagonal_matrix() {
         let a = NdArray::new(&[
             [3.0, 0.0, 0.0],
             [0.0, 5.0, 0.0],
             [0.0, 0.0, -2.0],
         ]).unwrap();
 
-        let result = eig_qr(&a, 100, 1e-12).unwrap();
+        let result = qr_eig(&a, 100, 1e-12).unwrap();
 
         let rec = result.reconstruct().unwrap();
         assert!(rec.allclose(&a, 1e-8, 1e-8));
     }
 
     #[test]
-    fn test_eig_qr_symmetric_offdiag() {
+    fn test_qr_eig_symmetric_offdiag() {
         let a = NdArray::new(&[
             [2.0, 1.0],
             [1.0, 2.0],
         ]).unwrap();
-        let result = eig_qr(&a, 100, 1e-12).unwrap();
+        let result = qr_eig(&a, 100, 1e-12).unwrap();
 
         let mut sorted = result.eig_values.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -340,11 +340,11 @@ mod tests {
     }
 
     #[test]
-    fn test_eig_qr_random_symmetric() {
+    fn test_qr_eig_random_symmetric() {
         let a = NdArray::<f64>::randn(0.0, 1.0, (4, 4)).unwrap();
         let a_sym = (&a + &a.transpose_last().unwrap()).unwrap().mul(0.5).unwrap();
 
-        let result = eig_qr(&a_sym, 200, 1e-10).unwrap();
+        let result = qr_eig(&a_sym, 200, 1e-10).unwrap();
         let rec = result.reconstruct().unwrap();
 
         assert!(rec.allclose(&a_sym, 1e-3, 1e-3));
@@ -352,24 +352,24 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_eig_qr_non_square() {
+    fn test_qr_eig_non_square() {
         let a = NdArray::new(&[
             [1.0, 2.0, 3.0],
             [4.0, 5.0, 6.0],
         ]).unwrap();
 
-        let _ = eig_qr(&a, 100, 1e-12).unwrap();
+        let _ = qr_eig(&a, 100, 1e-12).unwrap();
     }
 
     #[test]
     #[should_panic]
-    fn test_eig_qr_non_symmetric() {
+    fn test_qr_eig_non_symmetric() {
         let a = NdArray::new(&[
             [1.0, 2.0],
             [0.0, 3.0],
         ]).unwrap();
 
-        let result = eig_qr(&a, 100, 1e-12).unwrap();
+        let result = qr_eig(&a, 100, 1e-12).unwrap();
         println!("{}", result.reconstruct().unwrap());
     }
 }
