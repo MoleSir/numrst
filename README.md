@@ -49,8 +49,9 @@ It provides a rich set of numerical operations, including broadcasting, indexing
 
 - Linear algebra:
   - basic: `dot`, `matmul`, `trace`
+  - norm: frobenius, infinity, spectral, nuclear, pl
   - decompose: lu, qr, cholesky, bidiagonal
-  - solve: lu, qr, cholesky, eig(only support symmetric), svd(can't rank_deficient)
+  - solve: lu, qr, cholesky, eig(only support symmetric), svd
 
 ## Quick Start
 

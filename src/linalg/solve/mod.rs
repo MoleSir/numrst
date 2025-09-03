@@ -18,6 +18,7 @@ use crate::{linalg, FloatDType, NdArray, Result};
 /// - `Qr`: Solve using **QR decomposition**. Can handle rectangular or rank-deficient matrices.
 pub enum SolveMethod {
     LU,
+    PLU,
     Cholesky,
     Qr
 }
@@ -62,6 +63,7 @@ pub enum SolveMethod {
 pub fn solve<T: FloatDType>(a: &NdArray<T>, y: &NdArray<T>, method: SolveMethod) -> Result<NdArray<T>> {
     match method {
         SolveMethod::LU => linalg::lu_solve(a, y),
+        SolveMethod::PLU => linalg::plu_solve(a, y),
         SolveMethod::Cholesky => linalg::cholesky_solve(a, y),
         SolveMethod::Qr => linalg::qr_solve(a, y),
     }

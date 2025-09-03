@@ -1,13 +1,6 @@
 use crate::{FloatDType, NdArray, NumDType, Result};
 use super::LinalgError;
 
-pub fn norm<T: FloatDType>(m: &NdArray<T>) -> T {
-    let sum = m.iter()
-        .map(|v| v.powi(2))
-        .sum::<T>();
-    sum.sqrt()
-}
-
 pub fn dot<T: NumDType>(a: &NdArray<T>, b: &NdArray<T>) -> Result<T> {
     let a = a.vector_view_unsafe()?;
     let b = b.vector_view_unsafe()?;

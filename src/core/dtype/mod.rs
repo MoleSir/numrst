@@ -109,6 +109,8 @@ pub trait NumDType :
 pub trait IntDType: 
     NumDType<Category = IntCategory>
     + num_traits::Bounded 
+    + num_traits::Pow<usize>
+    + Ord
 {
     fn is_true(self) -> bool {
         self != Self::zero()
