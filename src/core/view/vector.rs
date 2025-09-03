@@ -1,7 +1,201 @@
+use std::marker::PhantomData;
+
 use crate::linalg::LinalgError;
-use crate::{FloatDType, NdArray, NumDType, Result, WithDType};
+use crate::{Error, FloatDType, Indexer, NdArray, NumDType, Result, Storage, WithDType};
 use crate::{StorageMut, StorageRef};
-use super::{AsVectorView, AsVectorViewFloat, AsVectorViewMut, AsVectorViewMutNum, AsVectorViewNum};
+
+pub trait AsVectorView<'a, T: WithDType> : Sized {
+    fn len(&self) -> usize;
+    fn stride(&self) -> usize;
+    fn storage_get_uncheck(&self, storage_index: usize) -> T;
+    fn from_ndarray(arr: &'a NdArray<T>) -> Result<Self>;
+
+    fn get(&self, index: usize) -> Option<T> {
+        if index >= self.len() {
+            None
+        } else {
+            Some(self.storage_get_uncheck(self.storage_index(index)))
+        }
+    }
+
+    #[inline]
+    fn g(&self, index: usize) -> T {
+        self.storage_get_uncheck(self.storage_index(index))
+    }
+
+    fn eqal(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            false 
+        } else {
+            for i in 0..self.len() {
+                if self.g(i) != other.g(i) {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+
+    fn copy(&self) -> NdArray<T> {
+        let data: Vec<_> = (0..self.len())
+            .map(|index| self.g(index))
+            .collect();
+        let storage = Storage::new(data);
+        NdArray::from_storage(storage, self.len())
+    }
+
+    fn iter(&'a self) -> VectorViewIter<'a, T, Self> {
+        VectorViewIter { 
+            view: self, 
+            index: 0,
+            _marker: PhantomData,
+        }
+    }
+
+    fn to_vec(&'a self) -> Vec<T> {
+        self.iter().collect()
+    }
+
+    #[inline]
+    fn storage_index(&self, index: usize) -> usize {
+        self.stride() * index
+    }
+}
+
+pub trait AsVectorViewNum<'a, T: NumDType> : AsVectorView<'a, T> {
+    fn dot(&self, rhs: &Self) -> Result<T> {
+        if self.len() != rhs.len() {
+            Err(Error::LenMismatchVector { lhs: self.len(), rhs: rhs.len(), op: "dot" })?;
+        }
+
+        let v = (0..self.len())
+            .map(|index| self.g(index) * rhs.g(index))
+            .sum::<T>();
+
+        Ok(v)
+    }
+}
+
+pub trait AsVectorViewFloat<'a, T: FloatDType> : AsVectorViewNum<'a, T> {
+    fn norm(&'a self) -> T {
+        self.iter()
+            .map(|v| v.powi(2))
+            .sum::<T>()
+            .sqrt()
+    }
+}
+
+pub trait AsVectorViewMut<'a, T: WithDType> : AsVectorView<'a, T> {
+    fn storage_set_uncheck(&mut self, storage_index: usize, value: T);
+    fn from_ndarray_mut(arr: &'a mut NdArray<T>) -> Result<Self>;
+
+    fn set(&mut self, index: usize, value: T) -> Option<()> {
+        if index >= self.len() {
+            None
+        } else {
+            self.storage_set_uncheck(self.storage_index(index), value);
+            Some(())
+        }
+    }
+
+    #[inline]
+    fn s(&mut self, index: usize, value: T) {
+        self.storage_set_uncheck(self.storage_index(index), value);
+    }
+
+    fn swap(&mut self, other: &mut Self) -> Result<()> {
+        if self.len() != other.len() {
+            return Err(Error::LenMismatchVector { lhs: self.len(), rhs: other.len(), op: "swap" });
+        }
+    
+        let self_stride = self.stride();
+        let other_stride = other.stride();
+    
+        for i in 0..self.len() {
+            let si = self_stride * i;
+            let oi = other_stride * i;
+    
+            let a = self.storage_get_uncheck(si);
+            let b = other.storage_get_uncheck(oi);
+    
+            self.storage_set_uncheck(si, b);
+            other.storage_set_uncheck(oi, a);
+        }
+    
+        Ok(())
+    }
+
+    fn copy_from(&'a mut self, arr: &NdArray<T>) -> Result<()> {
+        let view = arr.vector_view()?;
+        self.copy_from_view(&view)
+    }
+
+    fn copy_from_view<'b>(&mut self, source: &impl AsVectorView<'b, T>) -> Result<()> {
+        if self.len() != source.len() {
+            Err(Error::LenMismatchVector { lhs: self.len(), rhs: source.len(), op: "copy_from_view" })?;
+        }
+
+        for i in 0..self.len() {
+            self.s(i, source.g(i));
+        }
+
+        Ok(())
+    }
+}
+
+pub trait AsVectorViewMutNum<'a, T: NumDType> : AsVectorViewMut<'a, T> {
+    fn assign_op<F>(&mut self, rhs: T, f: F) 
+    where 
+        F: Fn(T, T) -> T
+    {
+        for i in 0..self.len() {
+            let v = self.g(i);
+            self.s(i, f(v, rhs));
+        }
+    } 
+
+    #[inline]
+    fn add_assign(&mut self, add: T) {
+        self.assign_op(add, |a, b| a + b);
+    }
+
+    fn sub_assign(&mut self, sub: T) {
+        self.assign_op(sub, |a, b| a - b);
+    }
+
+    fn mul_assign(&mut self, mul: T) {
+        self.assign_op(mul, |a, b| a * b);
+    }
+
+    fn div_assign(&mut self, div: T) {
+        self.assign_op(div, |a, b| a / b);
+    }
+}
+
+pub struct VectorViewIter<'a, T: WithDType, V: AsVectorView<'a, T>> {
+    view: &'a V,
+    index: usize,
+    _marker: PhantomData<T>,
+}
+
+impl<'a, T: WithDType, V: AsVectorView<'a, T>> Iterator for VectorViewIter<'a, T, V> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.view.len() {
+            None
+        } else {
+            let value = self.view.g(self.index);
+            self.index += 1;
+            Some(value)
+        }
+    }
+}
+
+impl<'a, T: WithDType, V: AsVectorView<'a, T>> ExactSizeIterator for VectorViewIter<'a, T, V> {
+    fn len(&self) -> usize {
+        self.view.len()
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////
 ///              VectorView
@@ -51,6 +245,17 @@ impl<'a, T: WithDType> VectorView<'a, T> {
         }
     }
 
+    pub fn take(&'a self, size: usize) -> Result<VectorView<'a, T>> {
+        if size > self.len {
+            Err(LinalgError::VectorIndexOutOfRange { index: size, len: self.len, op: "drop" })?;
+        }
+        Ok(Self {
+            storage: self.storage.clone(),
+            len: size,
+            stride: self.stride
+        })
+    }  
+
     pub fn drop(&'a self, size: usize) -> Result<VectorView<'a, T>> {
         if size > self.len {
             Err(LinalgError::VectorIndexOutOfRange { index: size, len: self.len, op: "drop" })?;
@@ -63,6 +268,21 @@ impl<'a, T: WithDType> VectorView<'a, T> {
             stride: self.stride
         })
     }  
+
+    pub fn slice<I>(&'a self, index: I) -> Result<Self>
+    where
+        I: Into<Indexer>,
+    {
+        let index: Indexer = index.into();
+        let (begin, step, size) = index.begin_step_size(self.len(), "slice_vector")?;
+        let new_storage = self.storage.slice(begin * self.stride());
+    
+        Ok(Self {
+            storage: new_storage,
+            len: size,
+            stride: self.stride() * step,
+        })
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////

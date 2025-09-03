@@ -84,45 +84,9 @@ impl<'a, T: WithDType> MatrixViewUsf<'a, T> {
     {
         let ri: Indexer = ri.into();
         let ci: Indexer = ci.into();
-
-        fn get_start_step_len(
-            index: Indexer,
-            max_end: usize,
-            pos: &'static str,
-        ) -> Result<(usize, usize, usize)> {
-            match index {
-                Indexer::Select(i) => {
-                    if i >= max_end {
-                        Err(Error::MatrixIndexOutOfRange {
-                            len: max_end,
-                            index: i,
-                            position: pos,
-                        })
-                    } else {
-                        Ok((i, 1, 1))
-                    }
-                }
-                Indexer::Range(range) => {
-                    let start = range.start;
-                    if start >= max_end {
-                        return Err(Error::MatrixIndexOutOfRange {
-                            len: max_end,
-                            index: start,
-                            position: pos,
-                        });
-                    }
-                    let end = range.end.unwrap_or(max_end);
-                    let end = end.min(max_end);
-                    let step = range.step;
-                    assert!(step != 0);
-                    let len = (start..end).step_by(step).count();
-                    Ok((start, step, len))
-                }
-            }
-        }
-
-        let (rbegin, rstep, rsize) = get_start_step_len(ri, self.row_size(), "row")?;
-        let (cbegin, cstep, csize) = get_start_step_len(ci, self.col_size(), "col")?;
+        
+        let (rbegin, rstep, rsize) = ri.begin_step_size(self.row_size(), "slice_row")?;
+        let (cbegin, cstep, csize) = ci.begin_step_size(self.col_size(), "slice_col")?;
 
         let new_storage = StorageViewUsf(
             unsafe { self.storage.0.add(rbegin * self.row_stride() + cbegin * self.col_stride()) }

@@ -30,6 +30,13 @@ pub enum Error {
         index: usize,
     },
 
+    #[error("index '{index}' out of range range({max_size}) in {op}")]
+    IndexOutOfRange {
+        max_size: usize,
+        index: usize,
+        op: &'static str,
+    },
+
     #[error("{op}: dimension index {dim} out of range for shape {shape:?}")]
     DimOutOfRange {
         shape: Shape,

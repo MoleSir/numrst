@@ -54,6 +54,32 @@ pub enum Indexer {
     Range(Range),
 }
 
+impl Indexer {
+    pub fn begin_step_size(&self, max_end: usize, op: &'static str) -> Result<(usize, usize, usize)> {
+        match self {
+            &Indexer::Select(i) => {
+                if i >= max_end {
+                    Err(Error::IndexOutOfRange { max_size: max_end, index: i, op }) 
+                } else {
+                    Ok((i, 1, 1))
+                }
+            }
+            Indexer::Range(range) => {
+                let start = range.start;
+                if start >= max_end {
+                    Err(Error::IndexOutOfRange { max_size: max_end, index: start, op })?;
+                }
+                let end = range.end.unwrap_or(max_end);
+                let end = end.min(max_end);
+                let step = range.step;
+                assert!(step != 0);
+                let len = (start..end).step_by(step).count();
+                Ok((start, step, len))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Range {
     pub start: usize, 
