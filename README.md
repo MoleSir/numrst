@@ -48,7 +48,7 @@ It provides a rich set of numerical operations, including broadcasting, indexing
   - Unsafe view: `MatrixViewUsf` and `VectorViewUsf` are unsafe view, use ptr as storage
 
 - Linear algebra:
-  - basic: `dot`, `matmul`, `trace`
+  - basic: `dot`, `matmul`, `trace`, `det`, `rank`
   - norm: frobenius, infinity, spectral, nuclear, pl
   - decompose: `lu`, `qr`, `cholesky`, `bidiagonal`
   - solve: `lu`, `qr`, `cholesky`, `eig`(only support symmetric), `svd`
