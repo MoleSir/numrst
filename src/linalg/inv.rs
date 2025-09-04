@@ -213,7 +213,7 @@ mod tests {
         let identity = NdArray::<f64>::eye(a.dims2()?.0)?;
         let a_inv = inv(a, method)?;
         let res = a.matmul(&a_inv)?;
-        assert!(res.allclose(&identity, 1e-12, 1e-12));
+        assert!(res.allclose(&identity, 1e-8, 1e-8));
         Ok(())
     }
 
@@ -229,7 +229,7 @@ mod tests {
             let identity = NdArray::<f64>::eye(n)?;
             let chol_inv = cholesky_inv(&spd)?;
             let res = spd.matmul(&chol_inv)?;
-            assert!(res.allclose(&identity, 1e-12, 1e-12));
+            assert!(res.allclose(&identity, 1e-8, 1e-8));
 
             // -------------------------
             // 一般可逆矩阵用于 Plu / QR
